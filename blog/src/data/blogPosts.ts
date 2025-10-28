@@ -1,4 +1,4 @@
-import avatarAnamol from "@/assets/avatar-anamol.jpg";
+import avatarAnamolImg from "@/assets/avatar-anamol.jpg";
 
 export interface Author {
   name: string;
@@ -15,9 +15,13 @@ export interface BlogPost {
   description: string;
   content: string;
   author?: Author;
-  isVideo?: boolean;
-  isLive?: boolean;
 }
+
+const authorAnamol: Author = {
+  name: "Anamol Dhakal",
+  role: "Backend System Developer",
+  avatar: avatarAnamolImg,
+};
 
 export const blogPostsData: BlogPost[] = [
   {
@@ -134,11 +138,7 @@ velero backup create my-backup
 
 Running Kubernetes successfully requires continuous learning, monitoring, and optimization.
     `,
-    author: {
-      name: "James Patterson",
-      role: "DevOps Engineering Lead",
-      avatar: avatarAnamol,
-    },
+    author: authorAnamol,
   },
   {
     id: "distributed-systems-patterns",
@@ -302,11 +302,7 @@ def exponential_backoff(func, max_retries=5):
 
 Understanding these patterns is essential for building robust distributed systems that can handle failures gracefully.
     `,
-    author: {
-      name: "Anamol Dhakal",
-      role: "Backend System Developer",
-      avatar: avatarAnamol,
-    },
+    author: authorAnamol,
   },
   {
     id: "postgresql-performance",
@@ -508,11 +504,7 @@ ALTER TABLE users SET (autovacuum_vacuum_scale_factor = 0.1);
 
 Mastering PostgreSQL performance requires understanding your workload, monitoring continuously, and optimizing iteratively.
     `,
-    author: {
-      name: "Anamol Dhakal",
-      role: "Backend System Developer",
-      avatar: avatarAnamol,
-    },
+    author: authorAnamol,
   },
   {
     id: "api-design-best-practices",
@@ -758,11 +750,7 @@ paths:
 
 Great API design requires thinking from the developer's perspective and maintaining consistency across all endpoints.
     `,
-    author: {
-      name: "Anamol Dhakal",
-      role: "Backend System Developer",
-      avatar: avatarAnamol,
-    },
+    author: authorAnamol,
   },
   {
     id: "transformers-architecture",
@@ -837,11 +825,7 @@ The success of transformers comes from their ability to scale:
 
 Understanding transformers is essential for anyone working in modern AI and machine learning.
     `,
-    author: {
-      name: "Anamol Dhakal",
-      role: "Backend System Developer",
-      avatar: avatarAnamol,
-    },
+    author: authorAnamol,
   },
   {
     id: "microservices-best-practices",
@@ -941,11 +925,7 @@ Essential tools for microservices:
 
 Building successful microservices requires careful planning, robust tooling, and continuous improvement.
     `,
-    author: {
-      name: "Anamol Dhakal",
-      role: "Backend System Developer",
-      avatar: avatarAnamol,
-    },
+    author: authorAnamol,
   },
   {
     id: "neural-networks-fundamentals",
@@ -1088,11 +1068,7 @@ class NeuralNetwork:
 
 Understanding these fundamentals is crucial for building effective machine learning systems.
     `,
-    author: {
-      name: "Anamol Dhakal",
-      role: "Backend System Developer",
-      avatar: avatarAnamol,
-    },
+    author: authorAnamol,
   },
   {
     id: "kubernetes-production",
@@ -1297,11 +1273,7 @@ readinessProbe:
 
 Kubernetes provides powerful tools for running containerized applications at scale when configured correctly.
     `,
-    author: {
-      name: "Anamol Dhakal",
-      role: "Backend System Developer",
-      avatar: avatarAnamol,
-    },
+    author: authorAnamol,
   },
   {
     id: "gpt-fine-tuning",
@@ -1503,11 +1475,7 @@ Compare fine-tuned vs base model:
 
 Fine-tuning transforms generic models into specialized tools perfectly suited for your needs.
     `,
-    author: {
-      name: "Anamol Dhakal",
-      role: "Backend System Developer",
-      avatar: avatarAnamol,
-    },
+    author: authorAnamol,
   },
   {
     id: "graphql-api-design",
@@ -1877,11 +1845,7 @@ describe('User API', () => {
 
 GraphQL provides powerful tools for building flexible, efficient APIs when designed thoughtfully.
     `,
-    author: {
-      name: "Anamol Dhakal",
-      role: "Backend System Developer",
-      avatar: avatarAnamol,
-    },
+    author: authorAnamol,
   },
   {
     id: "reinforcement-learning",
@@ -2173,10 +2137,6 @@ Solutions: Dense rewards, curriculum learning, inverse RL
 
 Reinforcement learning continues to push the boundaries of what AI agents can accomplish through experience.
     `,
-    author: {
-      name: "Anamol Dhakal",
-      role: "Backend System Developer",
-      avatar: avatarAnamol,
-    },
+    author: authorAnamol,
   },
 ];

@@ -1,5 +1,5 @@
 import { Input } from "@/components/ui/input";
-import { Search } from "lucide-react";
+import { Search, Sparkles } from "lucide-react";
 
 const categories = [
   "Latest",
@@ -25,13 +25,16 @@ export const Sidebar = ({
   isMobile = false,
 }: SidebarProps) => {
   return (
-    <aside className={`w-full bg-card flex flex-col h-full ${!isMobile ? 'border border-border rounded-lg' : ''}`}>
-      <div className="p-6 border-b border-border">
-        <h1 className="text-3xl font-bold mb-2 font-sans">
-          Thoughtful
-        </h1>
+    <aside className={`w-full bg-card flex flex-col h-full ${!isMobile ? 'border border-border rounded-xl shadow-lg' : ''}`}>
+      <div className="p-6 border-b border-border bg-gradient-to-br from-primary/5 to-accent/5">
+        <div className="flex items-center gap-2 mb-2">
+          <Sparkles className="w-6 h-6 text-primary" />
+          <h1 className="text-3xl font-bold font-sans bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
+            Thoughtful
+          </h1>
+        </div>
         <p className="text-xs text-muted-foreground leading-relaxed">
-          Insights shaping tomorrow’s work—by those building it today.
+          Insights shaping tomorrow's work—by those building it today.
         </p>
       </div>
 
@@ -43,24 +46,24 @@ export const Sidebar = ({
             placeholder="Search articles..."
             value={searchQuery}
             onChange={(e) => onSearchChange(e.target.value)}
-            className="pl-10 h-9 text-sm"
+            className="pl-10 h-10 text-sm border-border/50 focus:border-primary transition-colors"
           />
         </div>
       </div>
 
       <nav className="flex-1 p-6">
-        <h2 className="text-xs font-semibold text-muted-foreground mb-3 uppercase tracking-wider">
+        <h2 className="text-xs font-semibold text-muted-foreground mb-4 uppercase tracking-wider">
           Categories
         </h2>
-        <ul className="space-y-0.5">
+        <ul className="space-y-1">
           {categories.map((category) => (
             <li key={category}>
               <button
                 onClick={() => onCategoryChange(category)}
-                className={`w-full text-left block py-2 px-3 text-sm rounded-md transition-colors ${
+                className={`w-full text-left block py-2.5 px-4 text-sm rounded-lg transition-all ${
                   activeCategory === category
-                    ? "bg-accent text-accent-foreground font-medium"
-                    : "text-muted-foreground hover:bg-accent/50 hover:text-foreground"
+                    ? "bg-primary/20 text-primary font-semibold border border-primary/30"
+                    : "text-muted-foreground hover:bg-accent/10 hover:text-foreground"
                 }`}
               >
                 {category}
