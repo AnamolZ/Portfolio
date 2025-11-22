@@ -28,10 +28,6 @@ export const Sidebar = ({
     <aside className={`w-full bg-card flex flex-col h-full ${!isMobile ? 'border border-border rounded-xl shadow-lg' : ''}`}>
       <div className="p-6 border-b border-border bg-gradient-to-br from-primary/5 to-accent/5">
         <div className="flex items-center gap-2 mb-2">
-          <Sparkles className="w-6 h-6 text-primary" />
-          <h1 className="text-3xl font-bold font-sans bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
-            Thoughtful
-          </h1>
         </div>
         <p className="text-xs text-muted-foreground leading-relaxed">
           Insights shaping tomorrow's work—by those building it today.
@@ -62,7 +58,7 @@ export const Sidebar = ({
                 onClick={() => onCategoryChange(category)}
                 className={`w-full text-left block py-2.5 px-4 text-sm rounded-lg transition-all ${
                   activeCategory === category
-                    ? "bg-primary/20 text-primary font-semibold border border-primary/30"
+                    ? "bg-primary/0 text-primary font-semibold border border-primary/30"
                     : "text-muted-foreground hover:bg-accent/10 hover:text-foreground"
                 }`}
               >

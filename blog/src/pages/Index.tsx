@@ -143,15 +143,12 @@ const Index = () => {
             ) : (
               <>
                 <div className="mb-8">
-                  <h2 className="text-2xl font-bold text-foreground">
-                    All Articles
-                  </h2>
                   <p className="text-muted-foreground mt-2">
                     Discover insights, tutorials, and updates
                   </p>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 gap-6">
                   {paginatedPosts.map((post, index) => (
                     <div
                       key={post.id}
