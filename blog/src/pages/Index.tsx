@@ -144,7 +144,7 @@ const Index = () => {
               <>
                 <div className="mb-8">
                   <p className="text-muted-foreground mt-2">
-                    Discover insights, tutorials, and updates
+                    Explore in-depth coverage, expert insights, and timely updates on everything happening in tech.
                   </p>
                 </div>
 

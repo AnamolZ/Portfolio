@@ -25,2118 +25,271 @@ const authorAnamol: Author = {
 
 export const blogPostsData: BlogPost[] = [
   {
-    id: "kubernetes-production",
-    image: "https://images.unsplash.com/photo-1667372393119-3d4c48d07fc9",
-    thumbnail: "https://images.unsplash.com/photo-1667372393119-3d4c48d07fc9",
-    category: "Backend",
-    title: "Kubernetes in Production: Lessons from Running Large-Scale Clusters",
-    description:
-      "Real-world insights from managing Kubernetes clusters at scale. Learn about resource management, security best practices, and operational challenges you'll face in production.",
+    id: "deconstructing-the-cloudflare-outage",
+    image: "https://cf-assets.www.cloudflare.com/zkvhlag99gkb/9f2k63fiixI2YXDgsnbGq/3c377a6fbd84b5347f814deb6435c476/Cloudflare-Outage-hero-18-nov-2025.png",
+    thumbnail: "https://cf-assets.www.cloudflare.com/zkvhlag99gkb/9f2k63fiixI2YXDgsnbGq/3c377a6fbd84b5347f814deb6435c476/Cloudflare-Outage-hero-18-nov-2025.png",
+    category: "Tech News",
+    title: "Deconstructing the Cloudflare Outage",
+    description: "On November 18, 2025, Cloudflare—a critical backbone of the modern internet—experienced a significant global disruption. For nearly six hours, users worldwide encountered HTTP 5xx errors, preventing access to millions of websites and services. While initial symptoms pointed toward a massive cyberattack, the reality was a complex internal software failure.",
     content: `
-# Kubernetes in Production: Lessons from Running Large-Scale Clusters
+### Deconstructing the Cloudflare Outage
 
-Running Kubernetes at scale requires more than just understanding the basics. This guide shares hard-won lessons from managing production clusters serving millions of requests.
+Contrary to early speculation, this outage was not caused by a Distributed Denial of Service (DDoS) attack or malicious external actors. The failure originated from a routine internal change to improve security.
 
-![Kubernetes Dashboard](https://images.unsplash.com/photo-1639322537228-f710d846310a)
+Cloudflare engineers deployed a permissions update to a **ClickHouse** database cluster to make access controls more explicit. However, this change had an unforeseen side effect: it caused the underlying database query to return duplicate rows. This duplication corrupted the **"feature file"**—a critical configuration file used by Cloudflare’s Bot Management system to fingerprint threats.
 
-## Resource Management
+The duplication caused the feature file to balloon in size, exceeding a hardcoded limit of **200 features** within the core proxy software. When the proxy attempted to load this oversized file, it could not handle the exception gracefully. Instead of failing safe, the process panicked and crashed. Because this file is regenerated and propagated globally every five minutes, the crash looped repeatedly across the entire network, taking down core traffic handling capabilities.
 
-### Setting the Right Limits
+### The Anatomy of a "Panic"
+To understand why the internet went dark, we have to look at the software architecture. The core proxy process is designed for extreme speed and efficiency. When the feature file—which serves as a dynamic rule set—was ingested, the parser encountered a buffer overflow scenario.
 
-One of the most critical aspects of running Kubernetes in production:
+In a robust system, this should trigger an error log and a fallback to the last known good configuration. However, in this specific version of the release, the overflow triggered a **system panic**. This is the software equivalent of a "Blue Screen of Death" for the server process.
 
-- **CPU requests**: Start conservative, monitor actual usage
-- **Memory limits**: Be generous to avoid OOMKills
-- **Horizontal Pod Autoscaling**: Scale based on custom metrics
-- **Vertical Pod Autoscaling**: Automatically adjust resource requests
+### The "Fog of War": Why Diagnosis Was Delayed
+The incident was particularly difficult to diagnose because of its fluctuating nature. The faulty configuration file was not static; it was being generated dynamically.
 
-\`\`\`yaml
-resources:
-  requests:
-    memory: "256Mi"
-    cpu: "200m"
-  limits:
-    memory: "512Mi"
-    cpu: "500m"
-\`\`\`
+Depending on which node of the ClickHouse cluster the query hit, the system would produce either a "good" file or a "bad" file. This caused the network to oscillate between a broken state and a healthy state every few minutes. This "flapping" behavior mimics the signature of a sophisticated, pulsing DDoS attack. Compounding the confusion, Cloudflare's external status page coincidentally went offline due to an unrelated issue, leading engineers to initially suspect a coordinated, hyper-scale attack against their infrastructure.
 
-![Cloud Architecture](https://images.unsplash.com/photo-1544197150-b99a580bb7a8)
+### Resolution and Remediation
+The turning point came when engineers ruled out an attack and identified the oversized feature file as the culprit. The resolution involved a multi-step process:
 
-## Security Hardening
+1.  **Stop the Bleeding:** Engineers halted the generation and propagation of the corrupted feature files.
+2.  **Manual Override:** A known "good" version of the file was manually inserted into the distribution queue.
+3.  **Force Restart:** The core proxy services were forced to restart to clear the bad state.
 
-### Network Policies
+Core traffic began flowing normally by **14:30 UTC**, with full resolution achieved by **17:06 UTC**.
 
-Implement zero-trust networking:
-
-1. **Default deny**: Block all traffic by default
-2. **Explicit allow**: Only permit necessary connections
-3. **Namespace isolation**: Separate environments
-4. **Pod Security Standards**: Enforce security controls
-
-### RBAC Best Practices
-
-- **Principle of least privilege**: Grant minimal permissions
-- **Service accounts**: Unique identity per workload
-- **Regular audits**: Review access patterns
-- **Automated cleanup**: Remove unused permissions
-
-![Security Operations](https://images.unsplash.com/photo-1563986768609-322da13575f3)
-
-## Observability Stack
-
-### Essential Components
-
-- **Metrics**: Prometheus + Grafana
-- **Logs**: ELK or Loki stack
-- **Traces**: Jaeger or Tempo
-- **Alerts**: PagerDuty integration
-
-### Key Metrics to Monitor
-
-1. Node CPU/memory utilization
-2. Pod restart rates
-3. API server latency
-4. etcd performance
-5. Network throughput
-
-## Disaster Recovery
-
-### Backup Strategy
-
-\`\`\`bash
-# Backup etcd regularly
-etcdctl snapshot save backup.db
-
-# Backup persistent volumes
-velero backup create my-backup
-\`\`\`
-
-### Multi-Cluster Strategy
-
-- **Active-active**: Traffic split across clusters
-- **Active-passive**: Failover to standby cluster
-- **Regional isolation**: Separate clusters per region
-- **Cross-cluster service mesh**: Unified traffic management
-
-![Data Center](https://images.unsplash.com/photo-1558494949-ef010cbdcc31)
-
-## Cost Optimization
-
-### Techniques That Work
-
-- **Node autoscaling**: Scale infrastructure with demand
-- **Spot instances**: Save 70% on compute costs
-- **Resource bin packing**: Optimize node utilization
-- **Storage tiering**: Use appropriate storage classes
-
-## Common Pitfalls
-
-1. **Overprovisioning**: Wasting resources on unused capacity
-2. **Insufficient monitoring**: Flying blind in production
-3. **Manual deployments**: Error-prone and slow
-4. **Ignoring upgrades**: Running outdated versions
-
-Running Kubernetes successfully requires continuous learning, monitoring, and optimization.
-    `,
+### Conclusion
+This incident serves as a stark reminder of the fragility inherent in hyperscale distributed systems. A single database query change, intended to improve security, cascaded into a global outage due to a lack of robust input validation in the core proxy. Cloudflare has since announced measures to harden their configuration ingestion pipelines to prevent similar "poison pill" files from bringing down the network in the future.
+`,
     author: authorAnamol,
   },
   {
-    id: "distributed-systems-patterns",
-    image: "https://images.unsplash.com/photo-1451187580459-43490279c0fa",
-    thumbnail: "https://images.unsplash.com/photo-1451187580459-43490279c0fa",
-    category: "System Design",
-    title: "Essential Distributed Systems Patterns Every Backend Engineer Should Know",
-    description:
-      "Master the fundamental patterns that power scalable distributed systems. From circuit breakers to saga patterns, learn how to build resilient backend architectures.",
+    id: "gemini-3-antigravity-launch",
+    image: "https://i.ytimg.com/vi/SVCBA-pBgt0/maxresdefault.jpg",
+    thumbnail: "https://i.ytimg.com/vi/SVCBA-pBgt0/maxresdefault.jpg",
+    category: "AI & Engineering",
+    title: "Google Drops Gemini 3 & Antigravity: The Death of the Localhost?",
+    description: "Just days after the Cloudflare incident, Google has shaken the tech world again. The release of Gemini 3.0 isn't just a model upgrade; it introduces 'Antigravity,' a new agent-first development platform that might make your current IDE obsolete. Here is a backend dev's analysis of the new 'Deep Think' mode and what it means for system architecture.",
     content: `
-# Essential Distributed Systems Patterns Every Backend Engineer Should Know
+### Beyond the Chatbot: The Era of "Antigravity"
 
-Building reliable distributed systems requires understanding proven patterns. This guide covers essential patterns that solve common challenges in distributed architectures.
+While the tech press is busy hyperventilating over **Gemini 3.0 Pro's** benchmark scores, the real story for us developers is buried in the documentation: **Google Antigravity**.
 
-## Circuit Breaker Pattern
+For the past decade, our workflow hasn't changed much: we write code in an IDE (VS Code, IntelliJ), run it on localhost, and push to a repo. With the November 18th release of Gemini 3, Google is trying to kill that loop entirely. 
 
-### Preventing Cascading Failures
+Antigravity isn't an IDE; it's an **Agent Orchestration Layer**. Instead of writing the function to "parse PDF and insert into SQL," you define the *outcome* and assign it to an autonomous agent instance. The "Manager" surface allows you to spawn, monitor, and debug multiple agents running in parallel workspaces. It's less like coding and more like being a Mission Control operator.
 
-The circuit breaker prevents a failing service from bringing down your entire system:
+### Gemini 3.0 Pro: The "Deep Think" Engine
+Underpinning this platform is the new Gemini 3.0 model family. The standout feature is **"Deep Think" mode**.
 
-\`\`\`python
-class CircuitBreaker:
-    def __init__(self, failure_threshold=5, timeout=60):
-        self.failure_count = 0
-        self.failure_threshold = failure_threshold
-        self.timeout = timeout
-        self.state = "CLOSED"
-        
-    def call(self, func):
-        if self.state == "OPEN":
-            raise Exception("Circuit breaker is OPEN")
-        try:
-            result = func()
-            self.on_success()
-            return result
-        except Exception as e:
-            self.on_failure()
-            raise e
-\`\`\`
+In previous models (like Gemini 1.5 or GPT-4), "reasoning" was essentially just predicting the next likely token based on training data. Gemini 3's Deep Think introduces a hidden "chain of thought" process that occurs *before* output generation. 
 
-![Network Infrastructure](https://images.unsplash.com/photo-1558494949-ef010cbdcc31)
+Google claims Deep Think allows the model to:
+1.  **Hypothesize:** Generate multiple potential solution paths.
+2.  **Critique:** Self-evaluate those paths against the user's constraints.
+3.  **Backtrack:** Abandon dead-end logic paths without the user ever seeing the failure.
 
-### States and Transitions
+On the **ARC-AGI-2** benchmark—the gold standard for novel abstract reasoning—Gemini 3 Pro reportedly scored **54.2%**, a massive jump from the previous state-of-the-art which hovered around 30%.
 
-- **CLOSED**: Normal operation
-- **OPEN**: Reject requests immediately
-- **HALF_OPEN**: Test if service recovered
+### The "Nano Banana" Surprise?
+In a weirdly named twist, the release also included the **"Nano Banana"** family of image generation models. While the name is... a choice... the tech is impressive. These are highly optimized, on-device models capable of generating assets needed by the agents in real-time. 
 
-## Saga Pattern
+Imagine an agent building a frontend for you; it doesn't just write the HTML/CSS. It now uses Nano Banana to generate the placeholder images and icons *locally* as it codes, removing the need for external asset libraries during the prototyping phase.
 
-### Managing Distributed Transactions
+### What This Means for Backend Systems
+This shifts our job description significantly. We are moving away from **writing logic** to **defining guardrails**.
 
-When ACID transactions aren't possible across services:
+In an Antigravity workflow, the risk isn't a syntax error; it's a **runaway agent**. 
+* How do you prevent an agent from spinning up 500 cloud instances because it "thought" that was the most efficient way to process a dataset? 
+* How do you debug a race condition between two AI agents that communicate via natural language?
 
-1. **Choreography**: Services publish events
-2. **Orchestration**: Central coordinator manages flow
-3. **Compensating transactions**: Rollback completed steps
+The "System Developer" of 2026 will need to be an expert in **Agent Governance** and **Output Verification**. We won't be reading stack traces; we'll be reading agent decision logs.
 
-![Distributed Architecture](https://images.unsplash.com/photo-1639322537228-f710d846310a)
+### Verdict
+Gemini 3 is powerful, yes. But Antigravity is the disruption. If you're a backend dev, stop ignoring "AI Agents" as a buzzword. The tools to replace your localhost are already here.
 
-### Example: Order Processing Saga
-
-\`\`\`
-1. Reserve inventory → Success
-2. Process payment → Failure
-3. Compensate: Release inventory
-\`\`\`
-
-## Leader Election
-
-### Coordination in Distributed Systems
-
-Essential for tasks requiring single ownership:
-
-- **Consensus algorithms**: Raft, Paxos
-- **ZooKeeper**: Distributed coordination
-- **etcd**: Key-value store with leader election
-- **Consul**: Service mesh with consensus
-
-![Server Infrastructure](https://images.unsplash.com/photo-1558346490-a72e53ae2d4f)
-
-## Event Sourcing
-
-### State as Sequence of Events
-
-Store all changes as immutable events:
-
-\`\`\`typescript
-interface Event {
-  type: string;
-  timestamp: Date;
-  data: any;
-}
-
-// Instead of current state
-const user = { name: "John", balance: 100 };
-
-// Store events
-const events = [
-  { type: "UserCreated", data: { name: "John" } },
-  { type: "BalanceIncreased", data: { amount: 100 } }
-];
-\`\`\`
-
-### Benefits
-
-1. Complete audit trail
-2. Time travel debugging
-3. Event replay for testing
-4. Multiple read models
-
-## CQRS Pattern
-
-### Separate Read and Write Models
-
-Command Query Responsibility Segregation:
-
-- **Commands**: Modify state
-- **Queries**: Read data
-- **Separate databases**: Optimize for each use case
-- **Eventual consistency**: Async synchronization
-
-![Data Flow](https://images.unsplash.com/photo-1551288049-bebda4e38f71)
-
-## Bulkhead Pattern
-
-### Isolating Failures
-
-Partition your system to prevent total failure:
-
-- **Thread pools**: Separate pools per service
-- **Connection pools**: Isolated database connections
-- **Service instances**: Dedicated resources per tenant
-- **Rate limiting**: Per-user or per-endpoint limits
-
-## Retry and Backoff
-
-### Handling Transient Failures
-
-Intelligent retry strategies:
-
-\`\`\`python
-def exponential_backoff(func, max_retries=5):
-    for attempt in range(max_retries):
-        try:
-            return func()
-        except TransientError:
-            wait_time = (2 ** attempt) + random.uniform(0, 1)
-            time.sleep(wait_time)
-    raise MaxRetriesExceeded()
-\`\`\`
-
-![Cloud Computing](https://images.unsplash.com/photo-1667372393119-3d4c48d07fc9)
-
-## Anti-Patterns to Avoid
-
-1. **Distributed monolith**: Microservices with tight coupling
-2. **Chatty services**: Excessive inter-service communication
-3. **Missing timeouts**: Infinite waits on failing services
-4. **Synchronous everything**: No async processing
-
-Understanding these patterns is essential for building robust distributed systems that can handle failures gracefully.
-    `,
+***`,
     author: authorAnamol,
   },
   {
-    id: "postgresql-performance",
-    image: "https://images.unsplash.com/photo-1544383835-bda2bc66a55d",
-    thumbnail: "https://images.unsplash.com/photo-1544383835-bda2bc66a55d",
-    category: "Backend",
-    title: "PostgreSQL Performance Tuning: From Query Optimization to Index Design",
-    description:
-      "Deep dive into PostgreSQL performance optimization. Learn query analysis, index strategies, and configuration tuning to handle millions of rows efficiently.",
+    id: "quantum-willow-backend-encryption-crisis",
+    image: "https://interestingengineering.com/_next/image?url=https%3A%2F%2Fcms.interestingengineering.com%2Fwp-content%2Fuploads%2F2025%2F10%2FUntitled-design-11.jpg&w=3840&q=75", 
+    thumbnail: "https://interestingengineering.com/_next/image?url=https%3A%2F%2Fcms.interestingengineering.com%2Fwp-content%2Fuploads%2F2025%2F10%2FUntitled-design-11.jpg&w=3840&q=75",
+    category: "System Architecture",
+    title: "The 'Willow' Breakthrough: Why Quantum Just Became a Backend Problem",
+    description: "For years, Quantum Computing was a '2030 problem.' This week, Google's announcement of the 'Willow' chip changed the timeline overnight. With 105 qubits and exponential error correction, we are no longer looking at scientific toys—we are looking at the end of RSA encryption. Here is what you need to know about Post-Quantum Cryptography (PQC) before your next security audit.",
     content: `
-# PostgreSQL Performance Tuning: From Query Optimization to Index Design
+### The Day the Timeline Shifted
 
-PostgreSQL powers some of the world's largest applications. This guide covers advanced techniques for optimizing query performance and database configuration.
+If you’ve been ignoring Quantum Computing news, assuming it’s relevant only to physicists and academics, it’s time to pay attention. This week’s announcement of Google's **"Willow" quantum chip** has effectively moved the "Q-Day" clock forward by several years.
 
-## Understanding Query Plans
+For backend developers, "Q-Day" is the hypothetical date when a quantum computer becomes powerful enough to crack standard public-key encryption algorithms like RSA and Elliptic Curve (ECC). We thought we had a decade. Willow suggests we might have half that.
 
-### Using EXPLAIN ANALYZE
+### What Makes "Willow" Different?
+The headline isn't just the qubit count (105 qubits); it’s the **Error Correction**. 
 
-The first step in optimization:
+Until now, adding more qubits to a quantum processor actually *increased* the noise and error rate, leading to diminishing returns. Willow is the first chip to demonstrate the opposite: as they scaled the logical qubits, the error rate went *down* exponentially. This is the "Below Threshold" moment the industry has been waiting for. It signals the transition from "noisy, experimental" devices to "fault-tolerant" computing.
 
-\`\`\`sql
-EXPLAIN ANALYZE
-SELECT u.name, COUNT(o.id) as order_count
-FROM users u
-LEFT JOIN orders o ON u.id = o.user_id
-WHERE u.created_at > '2024-01-01'
-GROUP BY u.name
-HAVING COUNT(o.id) > 5;
-\`\`\`
+### Why Backend Devs Need to Panic (Just a Little)
+Currently, 99% of the secure traffic on the internet (HTTPS, SSH, VPNs) relies on integer factorization or discrete logarithm problems—math that is incredibly hard for classical computers but trivially easy for a fault-tolerant quantum computer running Shor’s Algorithm.
 
-![Database Analytics](https://images.unsplash.com/photo-1551288049-bebda4e38f71)
+With Willow proving that fault tolerance is scalable, the threat of **"Harvest Now, Decrypt Later"** attacks becomes very real. State actors could be intercepting your encrypted traffic today, storing it, and waiting for a Willow-class machine to unlock it in 2027 or 2028.
 
-### Key Metrics
+### The Immediate Action Item: PQC Migration
+This isn't just doom-mongering; the solution already exists, but adoption is lagging. The US NIST (National Institute of Standards and Technology) recently finalized three Post-Quantum Cryptography (PQC) algorithms:
+1.  **ML-KEM (Kyber):** For general encryption (key encapsulation).
+2.  **ML-DSA (Dilithium):** For digital signatures.
+3.  **SLH-DSA (Sphincs+):** A backup signature scheme.
 
-- **Planning time**: Query optimization overhead
-- **Execution time**: Actual query runtime
-- **Rows**: Estimated vs actual row counts
-- **Buffers**: Shared buffer usage
+As system developers, we need to stop using default RSA-2048 libraries and start auditing our stacks for **crypto-agility**. 
+* **Audit:** Check your dependencies. Are you using OpenSSL 3.2+? (It has initial PQC support).
+* **Keys:** Are your SSH keys Ed25519? (Better, but still vulnerable eventually). You need to look into hybrid keys that combine classical ECC with Kyber.
+* **Databases:** If you are storing encrypted fields (like PII) in your DB using standard AES, you are actually *mostly* fine (AES-256 is considered quantum-resistant), but the *transmission* of that data to your API is the weak link.
 
-## Index Strategies
+### Beyond Security: The Optimization Opportunity
+It’s not all bad news. The same tech that threatens encryption offers massive upside for backend systems handling logistics or scheduling. 
 
-### B-Tree Indexes
+We are seeing the emergence of **Quantum-as-a-Service (QaaS)** APIs. Imagine hitting an endpoint to solve a "Traveling Salesman Problem" for a delivery fleet. Instead of a classical heuristic that takes 4 hours to run on an AWS EC2 instance, you could send the matrix to a quantum backend and get a near-perfect global optimization in milliseconds.
 
-The default and most versatile:
+### Conclusion
+The Willow chip is a marvel of engineering, but for us, it's a wake-up call. The "Quantum Era" isn't coming in the distant future—it started this November. If your roadmap for 2026 doesn't include a PQC migration strategy, you are technically already building legacy software.
 
-\`\`\`sql
--- Single column index
-CREATE INDEX idx_users_email ON users(email);
-
--- Composite index (order matters!)
-CREATE INDEX idx_orders_user_date 
-ON orders(user_id, created_at);
-\`\`\`
-
-![Code Analysis](https://images.unsplash.com/photo-1629654297299-c8506221ca97)
-
-### Specialized Index Types
-
-1. **GIN indexes**: Full-text search, JSONB
-2. **GiST indexes**: Geometric data, ranges
-3. **BRIN indexes**: Very large tables with natural ordering
-4. **Hash indexes**: Equality comparisons only
-
-### Index Maintenance
-
-\`\`\`sql
--- Rebuild bloated indexes
-REINDEX INDEX idx_users_email;
-
--- Find unused indexes
-SELECT schemaname, tablename, indexname
-FROM pg_stat_user_indexes
-WHERE idx_scan = 0;
-\`\`\`
-
-## Query Optimization Techniques
-
-### Join Optimization
-
-Choose the right join strategy:
-
-- **Nested Loop**: Small datasets
-- **Hash Join**: Equality conditions
-- **Merge Join**: Sorted data
-
-![Server Performance](https://images.unsplash.com/photo-1558494949-ef010cbdcc31)
-
-### Avoiding N+1 Queries
-
-\`\`\`sql
--- Bad: N+1 queries
-SELECT * FROM users;
--- Then for each user:
-SELECT * FROM orders WHERE user_id = ?;
-
--- Good: Single query with join
-SELECT u.*, o.*
-FROM users u
-LEFT JOIN orders o ON u.id = o.user_id;
-\`\`\`
-
-## Configuration Tuning
-
-### Memory Settings
-
-\`\`\`conf
-# Shared buffers (25% of RAM)
-shared_buffers = 8GB
-
-# Working memory per operation
-work_mem = 64MB
-
-# Maintenance operations
-maintenance_work_mem = 2GB
-
-# Query planning
-effective_cache_size = 24GB
-\`\`\`
-
-![Infrastructure Monitoring](https://images.unsplash.com/photo-1639322537228-f710d846310a)
-
-### Connection Pooling
-
-Use pgBouncer for connection management:
-
-\`\`\`conf
-[databases]
-mydb = host=localhost port=5432 dbname=mydb
-
-[pgbouncer]
-pool_mode = transaction
-max_client_conn = 1000
-default_pool_size = 25
-\`\`\`
-
-## Partitioning Strategies
-
-### Table Partitioning
-
-For tables with billions of rows:
-
-\`\`\`sql
--- Range partitioning by date
-CREATE TABLE orders (
-    id BIGSERIAL,
-    created_at TIMESTAMP,
-    ...
-) PARTITION BY RANGE (created_at);
-
-CREATE TABLE orders_2024_01 
-PARTITION OF orders
-FOR VALUES FROM ('2024-01-01') TO ('2024-02-01');
-\`\`\`
-
-![Data Management](https://images.unsplash.com/photo-1551288049-bebda4e38f71)
-
-## Monitoring and Alerts
-
-### Essential Queries
-
-\`\`\`sql
--- Find slow queries
-SELECT query, mean_exec_time, calls
-FROM pg_stat_statements
-ORDER BY mean_exec_time DESC
-LIMIT 10;
-
--- Check table bloat
-SELECT schemaname, tablename,
-       pg_size_pretty(pg_total_relation_size(tablename::text))
-FROM pg_tables
-ORDER BY pg_total_relation_size(tablename::text) DESC;
-\`\`\`
-
-## Vacuum and Analyze
-
-### Maintenance Tasks
-
-\`\`\`sql
--- Regular vacuum
-VACUUM ANALYZE users;
-
--- Aggressive cleanup
-VACUUM FULL users;
-
--- Autovacuum settings
-ALTER TABLE users SET (autovacuum_vacuum_scale_factor = 0.1);
-\`\`\`
-
-![System Architecture](https://images.unsplash.com/photo-1667372393119-3d4c48d07fc9)
-
-## Common Performance Killers
-
-1. **Missing indexes**: Full table scans
-2. **Over-indexing**: Slows down writes
-3. **Large transactions**: Lock contention
-4. **Unoptimized ORMs**: N+1 queries
-5. **No connection pooling**: Connection overhead
-
-Mastering PostgreSQL performance requires understanding your workload, monitoring continuously, and optimizing iteratively.
-    `,
+***`,
     author: authorAnamol,
   },
   {
-    id: "api-design-best-practices",
-    image: "https://images.unsplash.com/photo-1558494949-ef010cbdcc31",
-    thumbnail: "https://images.unsplash.com/photo-1558494949-ef010cbdcc31",
-    category: "Backend",
-    title: "RESTful API Design: Best Practices for Building Maintainable APIs",
-    description:
-      "Learn how to design clean, intuitive REST APIs that stand the test of time. Covers versioning, pagination, error handling, and documentation strategies.",
+    id: "chrome-zero-day-cve-2025-13223",
+    image: "https://www.secureitworld.com/wp-content/uploads/2025/07/Google-Chrome-Zero-Day-Vulnerability.jpg",
+    thumbnail: "https://www.secureitworld.com/wp-content/uploads/2025/07/Google-Chrome-Zero-Day-Vulnerability.jpg",
+    category: "Cybersecurity",
+    title: "Critical Alert: Chrome Zero-Day (CVE-2025-13223) Under Active Attack",
+    description: "Google has declared 'Code Red' for Chrome users. A critical zero-day vulnerability (CVE-2025-13223) is actively being exploited in the wild, forcing CISA to issue an emergency directive for federal agencies. This isn't a routine update; it is a race against attackers who are already inside the V8 engine.",
     content: `
-# RESTful API Design: Best Practices for Building Maintainable APIs
+### The "Update Now" Warning You Shouldn't Ignore
 
-Well-designed APIs are the foundation of modern applications. This comprehensive guide covers best practices for creating APIs that developers love to use.
+Usually, browser updates are mundane: a UI tweak here, a performance boost there. This week is different. Google has released an emergency out-of-band patch for a high-severity vulnerability tracked as **CVE-2025-13223**, and the U.S. Cybersecurity and Infrastructure Security Agency (CISA) has immediately added it to its "Known Exploited Vulnerabilities" catalog.
 
-## Resource Naming
+Translation: This is not theoretical. Hackers are actively using this bug right now to compromise systems.
 
-### URL Structure
+### What is CVE-2025-13223?
 
-Follow consistent conventions:
+The vulnerability lies deep within **V8**, Google’s open-source high-performance JavaScript and WebAssembly engine. Specifically, it is a **Type Confusion** vulnerability.
 
-\`\`\`
-GET    /api/v1/users              # List users
-GET    /api/v1/users/{id}         # Get user
-POST   /api/v1/users              # Create user
-PUT    /api/v1/users/{id}         # Update user
-PATCH  /api/v1/users/{id}         # Partial update
-DELETE /api/v1/users/{id}         # Delete user
+For those of us who work in managed languages like Python or JavaScript, we rarely think about memory types. But V8 is written in C++, where type safety is paramount. A "Type Confusion" bug occurs when the engine is tricked into accessing a piece of memory using a different object type than what was originally stored there.
 
-# Nested resources
-GET    /api/v1/users/{id}/orders  # User's orders
-\`\`\`
+Think of it like a warehouse labeling error. You put a box of "Feathers" on a shelf, but the inventory system thinks it's a box of "Lead Bricks." If a worker tries to lift it expecting lead, they might throw it through the ceiling. In software terms, this mismatch allows an attacker to corrupt the memory heap.
 
-![API Architecture](https://images.unsplash.com/photo-1639322537228-f710d846310a)
+### The Exploit Chain
+Because this bug is in V8, the attack vector is terrifyingly simple: **a malicious website.**
 
-### Naming Guidelines
+You don't need to download a sketchy .exe file. You just need to visit a webpage that contains specially crafted JavaScript.
+1.  **The Trigger:** The malicious JS confuses the V8 engine about the type of an object in memory.
+2.  **Heap Corruption:** This confusion allows the script to write data to forbidden memory areas (out-of-bounds write).
+3.  **RCE (Remote Code Execution):** If chained correctly, this lets the attacker escape the browser sandbox and execute arbitrary code on your machine.
 
-- Use **plural nouns** for resources
-- Use **kebab-case** for multi-word resources
-- Keep URLs **lowercase**
-- Avoid verbs in endpoints (use HTTP methods)
+### Who Is At Risk?
+Everyone. Since V8 powers not just Chrome but the entire Chromium ecosystem, this vulnerability affects:
+* **Google Chrome**
+* **Microsoft Edge**
+* **Brave**
+* **Opera**
+* **Vivaldi**
 
-## HTTP Status Codes
+### Action Items for Developers and Admins
 
-### Use the Right Status Code
+**1. Verification:**
+Don't just assume "auto-update" has worked. Go to \`chrome://settings/help\` immediately. You need to be on version **142.0.7444.175** (or .176 for Mac) or higher.
 
-\`\`\`
-200 OK                  # Success
-201 Created            # Resource created
-204 No Content         # Success, no body
-400 Bad Request        # Invalid input
-401 Unauthorized       # Authentication required
-403 Forbidden          # Insufficient permissions
-404 Not Found          # Resource doesn't exist
-409 Conflict           # Resource conflict
-422 Unprocessable      # Validation error
-500 Internal Error     # Server error
-503 Service Unavailable # Temporary unavailable
-\`\`\`
+**2. The Electron Question:**
+As backend and system developers, we often forget that many of our desktop apps are just Chrome in a trench coat (Electron apps). VS Code, Slack, Discord, and Postman all run on Node.js and V8. While the browser vector is the most dangerous, we should expect security updates for these tools in the coming days as the patched V8 engine trickles down to the Electron framework.
 
-![Network Communication](https://images.unsplash.com/photo-1558494949-ef010cbdcc31)
+**3. Server-Side V8 (Node.js):**
+While this specific exploit targets the browser rendering process, Type Confusion bugs in V8 can theoretically impact Node.js runtimes if they process untrusted code (e.g., server-side rendering of user-submitted templates). Keep an eye on Node.js security releases this week.
 
-## Error Handling
+### Conclusion
+This is the seventh zero-day exploit for Chrome in 2025 alone. It highlights the perpetual arms race between browser vendors and threat actors. Google's "Big Sleep" AI agent actually discovered a *different* V8 bug (CVE-2025-13224) in this same patch cycle, proving that AI is joining the defense—but for now, your best defense is still the "Update" button.
 
-### Consistent Error Format
-
-\`\`\`json
-{
-  "error": {
-    "code": "VALIDATION_ERROR",
-    "message": "Invalid input data",
-    "details": [
-      {
-        "field": "email",
-        "message": "Invalid email format"
-      },
-      {
-        "field": "age",
-        "message": "Must be 18 or older"
-      }
-    ],
-    "request_id": "abc-123-def",
-    "timestamp": "2024-01-15T10:30:00Z"
-  }
-}
-\`\`\`
-
-## Pagination
-
-### Cursor-Based Pagination
-
-For large datasets:
-
-\`\`\`
-GET /api/v1/users?limit=20&cursor=eyJpZCI6MTAwfQ
-
-Response:
-{
-  "data": [...],
-  "pagination": {
-    "next_cursor": "eyJpZCI6MTIwfQ",
-    "has_more": true
-  }
-}
-\`\`\`
-
-![Data Processing](https://images.unsplash.com/photo-1551288049-bebda4e38f71)
-
-### Offset Pagination
-
-For smaller datasets:
-
-\`\`\`
-GET /api/v1/users?page=2&per_page=20
-
-Response:
-{
-  "data": [...],
-  "pagination": {
-    "page": 2,
-    "per_page": 20,
-    "total": 500,
-    "total_pages": 25
-  }
-}
-\`\`\`
-
-## Filtering and Sorting
-
-### Query Parameters
-
-\`\`\`
-# Filtering
-GET /api/v1/users?status=active&role=admin
-
-# Sorting
-GET /api/v1/users?sort=-created_at,name
-
-# Field selection
-GET /api/v1/users?fields=id,name,email
-
-# Search
-GET /api/v1/users?q=john
-\`\`\`
-
-![API Dashboard](https://images.unsplash.com/photo-1639322537228-f710d846310a)
-
-## Versioning Strategies
-
-### URL Versioning (Recommended)
-
-\`\`\`
-/api/v1/users
-/api/v2/users
-\`\`\`
-
-### Header Versioning
-
-\`\`\`
-Accept: application/vnd.myapi.v1+json
-\`\`\`
-
-## Authentication
-
-### Bearer Token Authentication
-
-\`\`\`
-Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
-\`\`\`
-
-### API Key Authentication
-
-\`\`\`
-X-API-Key: your-api-key-here
-\`\`\`
-
-![Security Systems](https://images.unsplash.com/photo-1563986768609-322da13575f3)
-
-## Rate Limiting
-
-### Response Headers
-
-\`\`\`
-X-RateLimit-Limit: 1000
-X-RateLimit-Remaining: 999
-X-RateLimit-Reset: 1642262400
-\`\`\`
-
-### Strategies
-
-- **Fixed window**: Simple but can burst
-- **Sliding window**: Smoother rate limiting
-- **Token bucket**: Allows bursts with refill
-- **Per-user limits**: Different tiers
-
-## Documentation
-
-### OpenAPI Specification
-
-\`\`\`yaml
-openapi: 3.0.0
-info:
-  title: My API
-  version: 1.0.0
-paths:
-  /users:
-    get:
-      summary: List users
-      parameters:
-        - name: page
-          in: query
-          schema:
-            type: integer
-      responses:
-        '200':
-          description: Successful response
-\`\`\`
-
-![Development Tools](https://images.unsplash.com/photo-1629654297299-c8506221ca97)
-
-## HATEOAS
-
-### Hypermedia Links
-
-\`\`\`json
-{
-  "id": 123,
-  "name": "John Doe",
-  "links": {
-    "self": "/api/v1/users/123",
-    "orders": "/api/v1/users/123/orders",
-    "profile": "/api/v1/users/123/profile"
-  }
-}
-\`\`\`
-
-## Performance Optimization
-
-1. **Caching**: ETags, Cache-Control headers
-2. **Compression**: gzip responses
-3. **Partial responses**: Field filtering
-4. **Batch endpoints**: Reduce round trips
-5. **HTTP/2**: Multiplexing
-
-Great API design requires thinking from the developer's perspective and maintaining consistency across all endpoints.
-    `,
+***`,
     author: authorAnamol,
   },
   {
-    id: "transformers-architecture",
-    image: "https://images.unsplash.com/photo-1677442136019-21780ecad995",
-    thumbnail: "https://images.unsplash.com/photo-1677442136019-21780ecad995",
-    category: "Latest",
-    title: "Understanding Transformer Architecture: The Foundation of Modern AI",
-    description:
-      "A deep dive into the transformer architecture that powers GPT, BERT, and other state-of-the-art language models. Learn how attention mechanisms revolutionized natural language processing.",
+    id: "supply-chain-crisis-harvard-banks",
+    image: "https://static.toiimg.com/thumb/msid-125518109,width-1280,height-720,resizemode-4/125518109.jpg", 
+    thumbnail: "https://static.toiimg.com/thumb/msid-125518109,width-1280,height-720,resizemode-4/125518109.jpg",
+    category: "Cybersecurity",
+    title: "The Supply Chain Crisis: Why Harvard and Wall Street Both Fell",
+    description: "A new wave of cyberattacks has hit Harvard University and major financial giants like JPMorgan and Citi. But this isn't a coincidence—it is a textbook supply chain attack. Here is why your third-party vendors are currently your biggest security liability.",
     content: `
-# Understanding Transformer Architecture: The Foundation of Modern AI
+### The Fortress vs. The Vendor
 
-The transformer architecture, introduced in the seminal paper "Attention is All You Need," has revolutionized natural language processing and become the foundation for modern AI systems like GPT, BERT, and Claude.
+If you were to try and hack JPMorgan Chase or Harvard University directly, you would face some of the most sophisticated firewalls and intrusion detection systems (IDS) on the planet. But this week's headlines prove a painful truth in systems engineering: **you are only as secure as your least secure vendor.**
 
-![Neural Network Visualization](https://images.unsplash.com/photo-1620712943543-bcc4688e7485)
+Two major stories broke simultaneously:
+1.  **Harvard University** suffered a breach exposing donor and student data via a compromised database.
+2.  **Wall Street Giants** (JPMorgan, Citi, Morgan Stanley) had client mortgage data exposed not because *they* were hacked, but because **SitusAMC**—a third-party vendor used for loan processing—was compromised.
 
-## The Attention Mechanism
+### Anatomy of a Supply Chain Attack
 
-At the heart of transformers lies the **self-attention mechanism**, which allows models to weigh the importance of different words in a sequence when processing each word.
+For us backend developers, this is a wake-up call about dependency management. We often treat third-party APIs and vendors as "trusted zones." We shouldn't.
 
-### How Self-Attention Works
+In the case of the banking breach, the attack vector wasn't the bank's core ledger; it was a lateral move through a vendor's network. When we integrate a vendor (like SitusAMC) into our architecture, we often create a "privileged tunnel"—a VPN or a whitelisted API key that bypasses standard auth checks for efficiency.
 
-1. **Query, Key, Value**: Each word is transformed into three vectors
-2. **Attention Scores**: Calculate similarity between queries and keys
-3. **Weighted Sum**: Combine values based on attention scores
-4. **Context Understanding**: Each word attends to all other words
+Attackers know this. They don't attack the castle gate; they find the delivery truck that has a key to the side door.
 
-![AI Processing](https://images.unsplash.com/photo-1655635643532-fa9ba2648cbe)
+### The "Zero Trust" Reality Check
 
-## Multi-Head Attention
+The Harvard breach appears to be phishing-related, leading to unauthorized database access. This highlights the failure of **RBAC (Role-Based Access Control)** in many legacy systems. Once a credential is stolen, the system assumes the user is legitimate.
 
-Transformers use multiple attention heads in parallel, allowing the model to focus on different aspects of the input simultaneously:
+**What needs to change in our architecture:**
+* **Vendor Isolation:** Third-party services should never have "read-all" access. If a vendor needs mortgage data, they should hit a scoped API that returns *only* the specific record needed, not a bulk SQL dump capability.
+* **Just-in-Time (JIT) Access:** Admin credentials for databases should not be static. They should be ephemeral, generated for a specific session and revoked immediately after.
+* **Egress Filtering:** Why was the data able to leave? Our servers should be configured to block outbound traffic to unknown IP addresses, preventing data exfiltration even if a breach occurs.
 
-- **Syntactic patterns**: Grammar and sentence structure
-- **Semantic relationships**: Meaning and context
-- **Long-range dependencies**: Connections across distant words
-- **Positional information**: Word order and sequence
+### Conclusion
 
-## Encoder-Decoder Architecture
+The "SitusAMC" incident is the new "SolarWinds." As developers, we need to audit our \`package.json\` and our API integrations with the same scrutiny we apply to our own code. If a vendor holds your data, their security *is* your security.
 
-The original transformer uses both an encoder and decoder:
-
-### Encoder
-- Processes input sequence
-- Creates contextualized representations
-- Uses self-attention and feed-forward layers
-
-### Decoder
-- Generates output sequence
-- Attends to encoder outputs
-- Uses masked self-attention for autoregressive generation
-
-![Code on Screen](https://images.unsplash.com/photo-1629654297299-c8506221ca97)
-
-## Real-World Applications
-
-Transformers power countless AI applications:
-
-1. **Language Translation**: Real-time translation across 100+ languages
-2. **Text Generation**: GPT models for creative writing and coding
-3. **Question Answering**: BERT-based search and chatbots
-4. **Code Completion**: GitHub Copilot and similar tools
-
-## Performance and Scaling
-
-The success of transformers comes from their ability to scale:
-
-- **Parallelization**: Process entire sequences simultaneously
-- **Large datasets**: Learn from billions of text examples
-- **Model size**: Billions to trillions of parameters
-- **Transfer learning**: Pre-train once, fine-tune for specific tasks
-
-Understanding transformers is essential for anyone working in modern AI and machine learning.
-    `,
+***`,
     author: authorAnamol,
   },
   {
-    id: "microservices-best-practices",
-    image: "https://images.unsplash.com/photo-1558494949-ef010cbdcc31",
-    thumbnail: "https://images.unsplash.com/photo-1558494949-ef010cbdcc31",
-    category: "Backend",
-    title: "Microservices Best Practices: Building Scalable Backend Systems",
-    description:
-      "Learn how to design, implement, and maintain microservices architectures that scale. From service boundaries to API gateways, we cover essential patterns and anti-patterns.",
+    id: "nvidia-earnings-57b-revenue-ai-bubble",
+    image: "https://tvnz-1-news-prod.cdn.arcpublishing.com/resizer/v2/a-sign-for-a-nvidia-building-is-shown-in-santa-clara-RS4KH3KTWZCUFKL6AQOHSPYQZA.jpg?auth=b57b242c06db1a88229249e32f9e5208a859a6c31a24c9b889cb8b2baa8f05df&quality=70&width=767&height=431&focal=512%2C341",
+    thumbnail: "https://tvnz-1-news-prod.cdn.arcpublishing.com/resizer/v2/a-sign-for-a-nvidia-building-is-shown-in-santa-clara-RS4KH3KTWZCUFKL6AQOHSPYQZA.jpg?auth=b57b242c06db1a88229249e32f9e5208a859a6c31a24c9b889cb8b2baa8f05df&quality=70&width=767&height=431&focal=512%2C341",
+    category: "Market & Infrastructure",
+    title: "$57 Billion and Growing: Nvidia Smashes Expectations Amidst 'Bubble' Fears",
+    description: "Nvidia has done it again. With a record $57 billion in quarterly revenue, the chip giant continues to defy gravity. But as unfilled orders top $500 billion, a critical debate is forming: Is this sustainable structural change, or the peak of a dot-com style bubble? Here is a breakdown of the numbers and what they mean for the future of compute availability.",
     content: `
-# Microservices Best Practices: Building Scalable Backend Systems
+### The $57 Billion Reality Check
 
-Microservices architecture has become the standard for building scalable, maintainable backend systems. This guide covers essential patterns and practices for successful microservices implementation.
+If you were betting on the "AI Bubble" bursting this quarter, you just lost. Nvidia reported its Q3 2025 earnings this week, and the numbers are staggering: **$57 billion in quarterly revenue**, smashing analyst expectations of $54.6 billion.
 
-## Service Design Principles
+Driven almost entirely by the Data Center segment—which alone pulled in **$51.2 billion** (up 66% year-over-year)—this report confirms that the infrastructure build-out for the AI era is accelerating, not slowing. The company posted an Earnings Per Share (EPS) of **$1.30**, beating the consensus of $1.24.
 
-### 1. Single Responsibility
-Each microservice should focus on one business capability:
+### The "$500 Billion" Backlog
+Perhaps the most revealing metric wasn't in the revenue column, but in the backlog. CEO Jensen Huang revealed that Nvidia has over **$500 billion in unfilled orders** for its chips.
 
-- **User Service**: Authentication and profile management
-- **Order Service**: Order processing and fulfillment
-- **Payment Service**: Payment processing and billing
-- **Notification Service**: Email, SMS, and push notifications
+To put that in perspective: that is half a trillion dollars of capital already committed by Hyperscalers (Microsoft, Google, AWS, Meta) and nation-states just to *get in line* for compute. Huang explicitly dismissed "bubble" concerns, stating:
+> *"Blackwell sales are off the charts, and cloud GPUs are sold out... This is a structural shift, not a hype cycle."*
 
-![Server Room](https://images.unsplash.com/photo-1551288049-bebda4e38f71)
+### The Counter-Argument: The "Circular Economy" Risk
+Despite the victory lap, some financial analysts remain cautious. The primary concern is the so-called **"Circular AI Economy."**
 
-### 2. Loose Coupling
-Services should be independently deployable:
+A significant portion of Nvidia's revenue comes from tech giants who are investing in AI startups... which in turn use that funding to buy Nvidia chips. If the startups don't find a path to profitability, the funding dries up, and the "real" demand for chips could evaporate overnight.
 
-- Minimize direct dependencies
-- Use asynchronous messaging when possible
-- Version APIs carefully
-- Implement circuit breakers
+There is also the "Depreciation Time Bomb." Hyperscalers are spending hundreds of billions on H100s and B200s today. If, in two years, a new architecture makes these chips obsolete (or "depreciated" in accounting terms) before they have generated a return on investment, we could see a massive contraction in CAPEX spending in 2027.
 
-## Communication Patterns
+### What This Means for Backend Developers
+For us in the trenches, this earnings report signals two things:
 
-### Synchronous Communication
-- **REST APIs**: Standard HTTP endpoints
-- **gRPC**: High-performance RPC framework
-- **GraphQL**: Flexible query language
+1.  **Compute Scarcity isn't Ending Soon:** Even with record production, the $500B backlog means access to high-end H100/Blackwell clusters will remain expensive and competitive for the next 12-18 months.
+2.  **The Rise of "Agentic AI":** Huang specifically cited "Agentic AI"—systems that reason and act autonomously—as a key driver of future demand. This validates the shift we are seeing in software architecture: moving from simple RAG (Retrieval Augmented Generation) pipelines to complex, multi-step agent workflows that require vastly more inference compute.
 
-### Asynchronous Messaging
-- **Event-driven**: Publish/subscribe patterns
-- **Message queues**: RabbitMQ, Apache Kafka
-- **Event sourcing**: Store state changes as events
+### Conclusion
+Nvidia is currently the engine of the entire tech economy. While the "bubble" fears are valid from a macro-economic standpoint, the technical reality is that demand for intelligence is still outstripping supply. Until that flips, the green line goes up.
 
-![Network Connections](https://images.unsplash.com/photo-1451187580459-43490279c0fa)
-
-## Data Management
-
-### Database Per Service
-Each service owns its data:
-
-\`\`\`
-UserService → Users DB
-OrderService → Orders DB
-ProductService → Products DB
-\`\`\`
-
-### Distributed Transactions
-- **Saga Pattern**: Coordinate transactions across services
-- **Two-Phase Commit**: Ensure consistency
-- **Eventual Consistency**: Accept temporary inconsistency
-
-## API Gateway Pattern
-
-Implement a single entry point for clients:
-
-1. **Request Routing**: Direct requests to appropriate services
-2. **Authentication**: Centralized auth verification
-3. **Rate Limiting**: Protect services from overload
-4. **Response Aggregation**: Combine data from multiple services
-
-![Cloud Infrastructure](https://images.unsplash.com/photo-1639762681485-074b7f938ba0)
-
-## Observability and Monitoring
-
-Essential tools for microservices:
-
-- **Distributed Tracing**: Track requests across services (Jaeger, Zipkin)
-- **Centralized Logging**: Aggregate logs (ELK Stack, Splunk)
-- **Metrics Collection**: Monitor performance (Prometheus, Grafana)
-- **Health Checks**: Verify service availability
-
-## Deployment Strategies
-
-### Containerization
-- Docker for consistent environments
-- Kubernetes for orchestration
-- Service mesh for advanced networking
-
-### CI/CD Pipeline
-1. Automated testing
-2. Container builds
-3. Progressive rollouts
-4. Automated rollbacks
-
-Building successful microservices requires careful planning, robust tooling, and continuous improvement.
-    `,
-    author: authorAnamol,
-  },
-  {
-    id: "neural-networks-fundamentals",
-    image: "https://images.unsplash.com/photo-1655635643617-72e0b62b9278",
-    thumbnail: "https://images.unsplash.com/photo-1655635643617-72e0b62b9278",
-    category: "AI & ML",
-    title: "Neural Networks Fundamentals: From Perceptrons to Deep Learning",
-    description:
-      "Master the building blocks of neural networks. Understand neurons, activation functions, backpropagation, and how to build your first deep learning model from scratch.",
-    content: `
-# Neural Networks Fundamentals: From Perceptrons to Deep Learning
-
-Neural networks are the foundation of modern machine learning. This comprehensive guide takes you from basic perceptrons to deep learning architectures.
-
-## The Artificial Neuron
-
-A single neuron performs a simple computation:
-
-\`\`\`python
-output = activation(sum(weights * inputs) + bias)
-\`\`\`
-
-![AI Concept](https://images.unsplash.com/photo-1655635643617-72e0b62b9278)
-
-### Key Components
-
-1. **Inputs**: Feature values from your data
-2. **Weights**: Learned parameters that adjust importance
-3. **Bias**: Offset term for better fitting
-4. **Activation Function**: Introduces non-linearity
-
-## Activation Functions
-
-Different functions serve different purposes:
-
-### Sigmoid
-- Range: (0, 1)
-- Use case: Binary classification
-- Formula: σ(x) = 1 / (1 + e^(-x))
-
-### ReLU (Rectified Linear Unit)
-- Range: [0, ∞)
-- Use case: Hidden layers in deep networks
-- Formula: f(x) = max(0, x)
-
-### Tanh
-- Range: (-1, 1)
-- Use case: Hidden layers, centered output
-- Formula: tanh(x) = (e^x - e^(-x)) / (e^x + e^(-x))
-
-![Data Visualization](https://images.unsplash.com/photo-1551288049-bebda4e38f71)
-
-## Network Architectures
-
-### Feedforward Networks
-The simplest architecture:
-
-\`\`\`
-Input Layer → Hidden Layers → Output Layer
-\`\`\`
-
-### Convolutional Neural Networks (CNNs)
-Specialized for image processing:
-- Convolutional layers extract features
-- Pooling layers reduce dimensionality
-- Fully connected layers for classification
-
-### Recurrent Neural Networks (RNNs)
-Process sequential data:
-- Maintain hidden state across time steps
-- Handle variable-length sequences
-- Applications: Text, time series, speech
-
-![Machine Learning](https://images.unsplash.com/photo-1635070041078-e363dbe005cb)
-
-## Training Neural Networks
-
-### Forward Pass
-1. Input data flows through network
-2. Each layer computes activations
-3. Final layer produces predictions
-
-### Backward Pass (Backpropagation)
-1. Calculate prediction error
-2. Compute gradients using chain rule
-3. Update weights to minimize error
-
-### Optimization Algorithms
-
-**Stochastic Gradient Descent (SGD)**
-\`\`\`python
-weight = weight - learning_rate * gradient
-\`\`\`
-
-**Adam Optimizer**
-- Adaptive learning rates
-- Momentum-based updates
-- Most popular for deep learning
-
-## Practical Implementation
-
-Building a simple neural network in Python:
-
-\`\`\`python
-import numpy as np
-
-class NeuralNetwork:
-    def __init__(self, layers):
-        self.weights = []
-        for i in range(len(layers) - 1):
-            w = np.random.randn(layers[i], layers[i+1])
-            self.weights.append(w)
-    
-    def sigmoid(self, x):
-        return 1 / (1 + np.exp(-x))
-    
-    def forward(self, X):
-        self.activations = [X]
-        for w in self.weights:
-            X = self.sigmoid(np.dot(X, w))
-            self.activations.append(X)
-        return X
-\`\`\`
-
-![Technology](https://images.unsplash.com/photo-1550751827-4bd374c3f58b)
-
-## Common Challenges
-
-### Overfitting
-- Model memorizes training data
-- Solutions: Regularization, dropout, more data
-
-### Vanishing Gradients
-- Gradients become too small in deep networks
-- Solutions: ReLU activation, batch normalization
-
-### Training Time
-- Deep networks take long to train
-- Solutions: GPU acceleration, transfer learning
-
-Understanding these fundamentals is crucial for building effective machine learning systems.
-    `,
-    author: authorAnamol,
-  },
-  {
-    id: "kubernetes-production",
-    image: "https://images.unsplash.com/photo-1667372393119-3d4c48d07fc9",
-    thumbnail: "https://images.unsplash.com/photo-1667372393119-3d4c48d07fc9",
-    category: "Backend",
-    title: "Kubernetes in Production: Deployment Strategies and Best Practices",
-    description:
-      "A comprehensive guide to running Kubernetes in production environments. Learn about deployments, services, ingress, monitoring, and security best practices.",
-    content: `
-# Kubernetes in Production: Deployment Strategies and Best Practices
-
-Running Kubernetes in production requires careful planning and adherence to best practices. This guide covers everything from basic deployments to advanced production patterns.
-
-## Core Concepts
-
-### Pods
-The smallest deployable unit in Kubernetes:
-
-\`\`\`yaml
-apiVersion: v1
-kind: Pod
-metadata:
-  name: my-app
-spec:
-  containers:
-  - name: app
-    image: my-app:1.0
-    ports:
-    - containerPort: 8080
-\`\`\`
-
-![Container Infrastructure](https://images.unsplash.com/photo-1558494949-ef010cbdcc31)
-
-### Deployments
-Manage replica sets and rolling updates:
-
-\`\`\`yaml
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: my-app
-spec:
-  replicas: 3
-  strategy:
-    type: RollingUpdate
-    rollingUpdate:
-      maxSurge: 1
-      maxUnavailable: 0
-  selector:
-    matchLabels:
-      app: my-app
-  template:
-    metadata:
-      labels:
-        app: my-app
-    spec:
-      containers:
-      - name: app
-        image: my-app:1.0
-\`\`\`
-
-## Deployment Strategies
-
-### Rolling Updates
-Default strategy, zero downtime:
-- Gradually replace old pods with new ones
-- Configure maxSurge and maxUnavailable
-- Automatic rollback on failure
-
-### Blue-Green Deployments
-Run two identical environments:
-1. Blue (current production)
-2. Green (new version)
-3. Switch traffic when validated
-
-### Canary Deployments
-Gradual rollout to subset of users:
-- Deploy to 5% of pods
-- Monitor metrics
-- Gradually increase percentage
-
-![Data Center](https://images.unsplash.com/photo-1451187580459-43490279c0fa)
-
-## Networking
-
-### Services
-Expose applications to network:
-
-**ClusterIP**: Internal cluster access
-**NodePort**: External access via node ports
-**LoadBalancer**: Cloud provider load balancer
-
-### Ingress
-HTTP/HTTPS routing:
-
-\`\`\`yaml
-apiVersion: networking.k8s.io/v1
-kind: Ingress
-metadata:
-  name: my-ingress
-spec:
-  rules:
-  - host: api.example.com
-    http:
-      paths:
-      - path: /
-        pathType: Prefix
-        backend:
-          service:
-            name: my-service
-            port:
-              number: 80
-\`\`\`
-
-## Resource Management
-
-### Resource Requests and Limits
-
-\`\`\`yaml
-resources:
-  requests:
-    memory: "256Mi"
-    cpu: "500m"
-  limits:
-    memory: "512Mi"
-    cpu: "1000m"
-\`\`\`
-
-![Cloud Computing](https://images.unsplash.com/photo-1639762681485-074b7f938ba0)
-
-### Horizontal Pod Autoscaling
-
-\`\`\`yaml
-apiVersion: autoscaling/v2
-kind: HorizontalPodAutoscaler
-metadata:
-  name: my-app-hpa
-spec:
-  scaleTargetRef:
-    apiVersion: apps/v1
-    kind: Deployment
-    name: my-app
-  minReplicas: 2
-  maxReplicas: 10
-  metrics:
-  - type: Resource
-    resource:
-      name: cpu
-      target:
-        type: Utilization
-        averageUtilization: 70
-\`\`\`
-
-## Observability
-
-### Health Checks
-
-**Liveness Probe**: Is container alive?
-**Readiness Probe**: Can container accept traffic?
-
-\`\`\`yaml
-livenessProbe:
-  httpGet:
-    path: /health
-    port: 8080
-  initialDelaySeconds: 30
-  periodSeconds: 10
-
-readinessProbe:
-  httpGet:
-    path: /ready
-    port: 8080
-  initialDelaySeconds: 5
-  periodSeconds: 5
-\`\`\`
-
-### Monitoring Stack
-- **Prometheus**: Metrics collection
-- **Grafana**: Visualization
-- **Alertmanager**: Alert routing
-
-![Technology Infrastructure](https://images.unsplash.com/photo-1550751827-4bd374c3f58b)
-
-## Security Best Practices
-
-1. **Use RBAC**: Role-based access control
-2. **Network Policies**: Control pod-to-pod communication
-3. **Secrets Management**: Never commit secrets
-4. **Pod Security Policies**: Restrict container privileges
-5. **Image Scanning**: Scan for vulnerabilities
-
-## Production Checklist
-
-✅ Resource limits configured
-✅ Health checks implemented
-✅ Horizontal autoscaling enabled
-✅ Monitoring and alerting setup
-✅ Backup and disaster recovery plan
-✅ Security policies enforced
-✅ CI/CD pipeline configured
-
-Kubernetes provides powerful tools for running containerized applications at scale when configured correctly.
-    `,
-    author: authorAnamol,
-  },
-  {
-    id: "gpt-fine-tuning",
-    image: "https://images.unsplash.com/photo-1677756119517-756a188d2d94",
-    thumbnail: "https://images.unsplash.com/photo-1677756119517-756a188d2d94",
-    category: "Latest",
-    title: "Fine-Tuning Large Language Models: A Practical Guide",
-    description:
-      "Learn how to fine-tune GPT and other large language models for your specific use case. Covers data preparation, training strategies, and evaluation techniques.",
-    content: `
-# Fine-Tuning Large Language Models: A Practical Guide
-
-Fine-tuning allows you to adapt pre-trained language models to your specific domain or task. This guide covers the complete process from data preparation to deployment.
-
-## Why Fine-Tune?
-
-Base models are trained on general data. Fine-tuning helps with:
-
-- **Domain-specific knowledge**: Medical, legal, technical content
-- **Task specialization**: Classification, summarization, Q&A
-- **Style adaptation**: Match your brand voice or format
-- **Improved accuracy**: Better performance on your specific use case
-
-![AI Technology](https://images.unsplash.com/photo-1676299081847-824916de030a)
-
-## Data Preparation
-
-### Dataset Requirements
-
-Quality over quantity:
-- **Minimum**: 50-100 high-quality examples
-- **Recommended**: 500-1000 examples
-- **Format**: Input-output pairs
-
-### Data Format
-
-\`\`\`json
-{
-  "messages": [
-    {"role": "system", "content": "You are a helpful assistant."},
-    {"role": "user", "content": "Explain transformers."},
-    {"role": "assistant", "content": "Transformers are..."}
-  ]
-}
-\`\`\`
-
-### Data Quality Checklist
-
-✅ Diverse examples covering edge cases
-✅ Consistent formatting
-✅ Clear instructions
-✅ Accurate outputs
-✅ Representative of real use cases
-
-![Machine Learning](https://images.unsplash.com/photo-1655720828018-edd2daec9349)
-
-## Fine-Tuning Process
-
-### 1. Choose Base Model
-
-**GPT-4**: Best quality, higher cost
-**GPT-3.5-turbo**: Balanced performance/cost
-**Open source**: LLaMA, Mistral for full control
-
-### 2. Training Configuration
-
-\`\`\`python
-from openai import OpenAI
-
-client = OpenAI()
-
-fine_tuning_job = client.fine_tuning.jobs.create(
-  training_file="file-abc123",
-  model="gpt-3.5-turbo",
-  hyperparameters={
-    "n_epochs": 3,
-    "batch_size": 4,
-    "learning_rate_multiplier": 0.1
-  }
-)
-\`\`\`
-
-### 3. Monitor Training
-
-Watch for:
-- **Loss curve**: Should decrease steadily
-- **Overfitting**: Validation loss increases
-- **Training time**: Typically 10-60 minutes
-
-![Neural Network](https://images.unsplash.com/photo-1620712943543-bcc4688e7485)
-
-## Advanced Techniques
-
-### Parameter-Efficient Fine-Tuning (PEFT)
-
-**LoRA (Low-Rank Adaptation)**
-- Fine-tune small subset of parameters
-- Much faster and cheaper
-- Maintain base model quality
-
-\`\`\`python
-from peft import LoraConfig, get_peft_model
-
-lora_config = LoraConfig(
-    r=16,
-    lora_alpha=32,
-    target_modules=["q_proj", "v_proj"],
-    lora_dropout=0.05,
-)
-
-model = get_peft_model(base_model, lora_config)
-\`\`\`
-
-### Instruction Tuning
-
-Format data as instructions:
-
-\`\`\`
-Instruction: Summarize the following article.
-
-Input: [Article text]
-
-Output: [Summary]
-\`\`\`
-
-## Evaluation
-
-### Quantitative Metrics
-
-- **Perplexity**: Lower is better
-- **BLEU Score**: For translation tasks
-- **F1 Score**: For classification
-- **ROUGE**: For summarization
-
-### Qualitative Assessment
-
-Test on holdout set:
-1. Sample diverse inputs
-2. Compare outputs to desired responses
-3. Check for hallucinations
-4. Verify instruction following
-
-![AI Development](https://images.unsplash.com/photo-1677442136019-21780ecad995)
-
-## Deployment Best Practices
-
-### Cost Optimization
-
-- Cache common requests
-- Use smaller models when possible
-- Implement rate limiting
-- Monitor token usage
-
-### Production Considerations
-
-\`\`\`python
-response = client.chat.completions.create(
-    model="ft:gpt-3.5-turbo:my-org:custom_suffix:id",
-    messages=[
-        {"role": "system", "content": system_prompt},
-        {"role": "user", "content": user_input}
-    ],
-    temperature=0.7,
-    max_tokens=500,
-    top_p=0.9
-)
-\`\`\`
-
-### A/B Testing
-
-Compare fine-tuned vs base model:
-- Measure accuracy improvements
-- Track user satisfaction
-- Monitor latency changes
-- Calculate ROI
-
-![Technology](https://images.unsplash.com/photo-1550751827-4bd374c3f58b)
-
-## Common Pitfalls
-
-### Overfitting
-- Model memorizes training data
-- Solution: More diverse data, fewer epochs
-
-### Data Leakage
-- Test data in training set
-- Solution: Strict train/test split
-
-### Catastrophic Forgetting
-- Model loses general knowledge
-- Solution: Mix in general data
-
-## Use Cases
-
-**Customer Support**: Domain-specific Q&A
-**Content Generation**: Brand-consistent writing
-**Code Generation**: Language-specific helpers
-**Data Extraction**: Structured output from text
-
-Fine-tuning transforms generic models into specialized tools perfectly suited for your needs.
-    `,
-    author: authorAnamol,
-  },
-  {
-    id: "graphql-api-design",
-    image: "https://images.unsplash.com/photo-1629654297299-c8506221ca97",
-    thumbnail: "https://images.unsplash.com/photo-1629654297299-c8506221ca97",
-    category: "Backend",
-    title: "GraphQL API Design: Building Flexible and Efficient APIs",
-    description:
-      "Master GraphQL schema design, resolver optimization, and best practices for building production-ready GraphQL APIs. Includes real-world examples and performance tips.",
-    content: `
-# GraphQL API Design: Building Flexible and Efficient APIs
-
-GraphQL offers a powerful alternative to REST APIs with its flexible query language and strong typing. Learn how to design and implement production-ready GraphQL APIs.
-
-## GraphQL Fundamentals
-
-### Schema Definition
-
-Define your data model with types:
-
-\`\`\`graphql
-type User {
-  id: ID!
-  name: String!
-  email: String!
-  posts: [Post!]!
-  createdAt: DateTime!
-}
-
-type Post {
-  id: ID!
-  title: String!
-  content: String!
-  author: User!
-  comments: [Comment!]!
-  published: Boolean!
-}
-
-type Comment {
-  id: ID!
-  text: String!
-  author: User!
-  post: Post!
-}
-\`\`\`
-
-![Code Development](https://images.unsplash.com/photo-1555066931-4365d14bab8c)
-
-### Queries and Mutations
-
-\`\`\`graphql
-type Query {
-  user(id: ID!): User
-  users(limit: Int, offset: Int): [User!]!
-  post(id: ID!): Post
-  posts(authorId: ID, published: Boolean): [Post!]!
-}
-
-type Mutation {
-  createUser(name: String!, email: String!): User!
-  updateUser(id: ID!, name: String, email: String): User!
-  deleteUser(id: ID!): Boolean!
-  
-  createPost(
-    title: String!
-    content: String!
-    authorId: ID!
-  ): Post!
-  
-  publishPost(id: ID!): Post!
-}
-\`\`\`
-
-## Schema Design Principles
-
-### 1. Think in Graphs
-
-Design relationships naturally:
-
-\`\`\`graphql
-# Good: Direct relationships
-type Order {
-  customer: Customer!
-  items: [OrderItem!]!
-  shipping: ShippingAddress!
-}
-
-# Avoid: Nested IDs requiring multiple queries
-type Order {
-  customerId: ID!
-  itemIds: [ID!]!
-  shippingId: ID!
-}
-\`\`\`
-
-![Network Diagram](https://images.unsplash.com/photo-1558494949-ef010cbdcc31)
-
-### 2. Pagination
-
-Implement cursor-based pagination:
-
-\`\`\`graphql
-type Query {
-  posts(
-    first: Int
-    after: String
-    last: Int
-    before: String
-  ): PostConnection!
-}
-
-type PostConnection {
-  edges: [PostEdge!]!
-  pageInfo: PageInfo!
-  totalCount: Int!
-}
-
-type PostEdge {
-  cursor: String!
-  node: Post!
-}
-
-type PageInfo {
-  hasNextPage: Boolean!
-  hasPreviousPage: Boolean!
-  startCursor: String
-  endCursor: String
-}
-\`\`\`
-
-### 3. Input Types
-
-Group related inputs:
-
-\`\`\`graphql
-input CreateUserInput {
-  name: String!
-  email: String!
-  password: String!
-  profile: ProfileInput
-}
-
-input ProfileInput {
-  bio: String
-  avatar: String
-  location: String
-}
-
-type Mutation {
-  createUser(input: CreateUserInput!): User!
-}
-\`\`\`
-
-## Resolver Implementation
-
-### Basic Resolver
-
-\`\`\`typescript
-const resolvers = {
-  Query: {
-    user: async (_parent, { id }, context) => {
-      return context.db.user.findUnique({
-        where: { id }
-      });
-    },
-    
-    users: async (_parent, { limit, offset }, context) => {
-      return context.db.user.findMany({
-        take: limit,
-        skip: offset
-      });
-    }
-  },
-  
-  User: {
-    posts: async (parent, _args, context) => {
-      return context.db.post.findMany({
-        where: { authorId: parent.id }
-      });
-    }
-  },
-  
-  Mutation: {
-    createUser: async (_parent, { name, email }, context) => {
-      return context.db.user.create({
-        data: { name, email }
-      });
-    }
-  }
-};
-\`\`\`
-
-![Server Infrastructure](https://images.unsplash.com/photo-1551288049-bebda4e38f71)
-
-## Performance Optimization
-
-### 1. DataLoader Pattern
-
-Batch and cache database queries:
-
-\`\`\`typescript
-import DataLoader from 'dataloader';
-
-const userLoader = new DataLoader(async (userIds) => {
-  const users = await db.user.findMany({
-    where: { id: { in: userIds } }
-  });
-  
-  return userIds.map(id => 
-    users.find(user => user.id === id)
-  );
-});
-
-// In resolver
-const user = await context.loaders.user.load(userId);
-\`\`\`
-
-### 2. Query Complexity Analysis
-
-Prevent expensive queries:
-
-\`\`\`typescript
-import { createComplexityLimitRule } from 'graphql-validation-complexity';
-
-const complexityLimit = createComplexityLimitRule(1000, {
-  onCost: (cost) => {
-    console.log('Query cost:', cost);
-  }
-});
-\`\`\`
-
-### 3. Selective Field Resolution
-
-Only fetch requested fields:
-
-\`\`\`typescript
-import { parseResolveInfo } from 'graphql-parse-resolve-info';
-
-const resolveUser = async (parent, args, context, info) => {
-  const fields = parseResolveInfo(info);
-  
-  return context.db.user.findUnique({
-    where: { id: args.id },
-    include: {
-      posts: fields.fieldsByTypeName.User.posts !== undefined,
-      comments: fields.fieldsByTypeName.User.comments !== undefined
-    }
-  });
-};
-\`\`\`
-
-![Technology](https://images.unsplash.com/photo-1550751827-4bd374c3f58b)
-
-## Authentication & Authorization
-
-### Context Setup
-
-\`\`\`typescript
-const server = new ApolloServer({
-  typeDefs,
-  resolvers,
-  context: async ({ req }) => {
-    const token = req.headers.authorization || '';
-    const user = await verifyToken(token);
-    
-    return {
-      user,
-      db,
-      loaders: createLoaders()
-    };
-  }
-});
-\`\`\`
-
-### Field-Level Authorization
-
-\`\`\`typescript
-const resolvers = {
-  User: {
-    email: (parent, args, context) => {
-      // Only show email to user themselves or admins
-      if (context.user.id === parent.id || context.user.isAdmin) {
-        return parent.email;
-      }
-      return null;
-    }
-  }
-};
-\`\`\`
-
-## Error Handling
-
-### Custom Errors
-
-\`\`\`typescript
-import { GraphQLError } from 'graphql';
-
-const resolvers = {
-  Mutation: {
-    deletePost: async (_parent, { id }, context) => {
-      const post = await context.db.post.findUnique({
-        where: { id }
-      });
-      
-      if (!post) {
-        throw new GraphQLError('Post not found', {
-          extensions: {
-            code: 'NOT_FOUND',
-            id
-          }
-        });
-      }
-      
-      if (post.authorId !== context.user.id) {
-        throw new GraphQLError('Unauthorized', {
-          extensions: {
-            code: 'UNAUTHORIZED'
-          }
-        });
-      }
-      
-      await context.db.post.delete({ where: { id } });
-      return true;
-    }
-  }
-};
-\`\`\`
-
-![Development](https://images.unsplash.com/photo-1629654297299-c8506221ca97)
-
-## Testing
-
-### Integration Tests
-
-\`\`\`typescript
-import { createTestClient } from 'apollo-server-testing';
-
-describe('User API', () => {
-  it('creates a user', async () => {
-    const { mutate } = createTestClient(server);
-    
-    const CREATE_USER = gql\`
-      mutation CreateUser($name: String!, $email: String!) {
-        createUser(name: $name, email: $email) {
-          id
-          name
-          email
-        }
-      }
-    \`;
-    
-    const result = await mutate({
-      mutation: CREATE_USER,
-      variables: {
-        name: 'John Doe',
-        email: 'john@example.com'
-      }
-    });
-    
-    expect(result.data.createUser).toMatchObject({
-      name: 'John Doe',
-      email: 'john@example.com'
-    });
-  });
-});
-\`\`\`
-
-GraphQL provides powerful tools for building flexible, efficient APIs when designed thoughtfully.
-    `,
-    author: authorAnamol,
-  },
-  {
-    id: "reinforcement-learning",
-    image: "https://images.unsplash.com/photo-1655635643532-fa9ba2648cbe",
-    thumbnail: "https://images.unsplash.com/photo-1655635643532-fa9ba2648cbe",
-    category: "AI & ML",
-    title: "Reinforcement Learning: Training Agents to Make Decisions",
-    description:
-      "Explore reinforcement learning algorithms from Q-Learning to PPO. Learn how to train agents for games, robotics, and real-world applications.",
-    content: `
-# Reinforcement Learning: Training Agents to Make Decisions
-
-Reinforcement Learning (RL) enables agents to learn optimal behavior through trial and error. This guide covers fundamental concepts and practical implementations.
-
-## Core Concepts
-
-### The RL Framework
-
-An agent interacts with an environment:
-
-1. **Agent**: Makes decisions
-2. **Environment**: Responds to actions
-3. **State**: Current situation
-4. **Action**: Choice made by agent
-5. **Reward**: Feedback signal
-6. **Policy**: Strategy for choosing actions
-
-![AI Robot](https://images.unsplash.com/photo-1677442136019-21780ecad995)
-
-### Markov Decision Process (MDP)
-
-Formal framework for RL:
-
-- **States (S)**: Set of possible situations
-- **Actions (A)**: Set of possible choices
-- **Transition (P)**: Probability of next state
-- **Reward (R)**: Immediate feedback
-- **Discount (γ)**: Value of future rewards
-
-## Q-Learning
-
-### Algorithm
-
-Learn action-value function Q(s, a):
-
-\`\`\`python
-# Q-Learning Update Rule
-Q(s, a) ← Q(s, a) + α[r + γ max Q(s', a') - Q(s, a)]
-
-# Implementation
-import numpy as np
-
-class QLearningAgent:
-    def __init__(self, states, actions, alpha=0.1, gamma=0.99, epsilon=0.1):
-        self.q_table = np.zeros((states, actions))
-        self.alpha = alpha      # Learning rate
-        self.gamma = gamma      # Discount factor
-        self.epsilon = epsilon  # Exploration rate
-    
-    def choose_action(self, state):
-        if np.random.random() < self.epsilon:
-            return np.random.randint(self.q_table.shape[1])
-        return np.argmax(self.q_table[state])
-    
-    def update(self, state, action, reward, next_state):
-        best_next = np.max(self.q_table[next_state])
-        td_target = reward + self.gamma * best_next
-        td_error = td_target - self.q_table[state, action]
-        self.q_table[state, action] += self.alpha * td_error
-\`\`\`
-
-![Machine Learning](https://images.unsplash.com/photo-1620712943543-bcc4688e7485)
-
-## Deep Q-Networks (DQN)
-
-### Neural Network Approximation
-
-Use neural networks for large state spaces:
-
-\`\`\`python
-import torch
-import torch.nn as nn
-
-class DQN(nn.Module):
-    def __init__(self, state_dim, action_dim):
-        super().__init__()
-        self.network = nn.Sequential(
-            nn.Linear(state_dim, 128),
-            nn.ReLU(),
-            nn.Linear(128, 128),
-            nn.ReLU(),
-            nn.Linear(128, action_dim)
-        )
-    
-    def forward(self, state):
-        return self.network(state)
-
-class DQNAgent:
-    def __init__(self, state_dim, action_dim):
-        self.q_network = DQN(state_dim, action_dim)
-        self.target_network = DQN(state_dim, action_dim)
-        self.optimizer = torch.optim.Adam(
-            self.q_network.parameters(), 
-            lr=0.001
-        )
-        self.memory = ReplayBuffer(10000)
-    
-    def train_step(self, batch_size=32):
-        if len(self.memory) < batch_size:
-            return
-        
-        batch = self.memory.sample(batch_size)
-        states, actions, rewards, next_states, dones = batch
-        
-        # Current Q values
-        q_values = self.q_network(states).gather(1, actions)
-        
-        # Target Q values
-        with torch.no_grad():
-            next_q = self.target_network(next_states).max(1)[0]
-            target_q = rewards + 0.99 * next_q * (1 - dones)
-        
-        # Loss and update
-        loss = nn.MSELoss()(q_values.squeeze(), target_q)
-        self.optimizer.zero_grad()
-        loss.backward()
-        self.optimizer.step()
-\`\`\`
-
-### Key Improvements
-
-**Experience Replay**: Store and sample past experiences
-**Target Networks**: Stabilize training
-**Double DQN**: Reduce overestimation
-
-![Neural Network](https://images.unsplash.com/photo-1676277791608-ac5ce1e35a0c)
-
-## Policy Gradient Methods
-
-### REINFORCE Algorithm
-
-Directly optimize policy:
-
-\`\`\`python
-class PolicyNetwork(nn.Module):
-    def __init__(self, state_dim, action_dim):
-        super().__init__()
-        self.network = nn.Sequential(
-            nn.Linear(state_dim, 128),
-            nn.ReLU(),
-            nn.Linear(128, action_dim),
-            nn.Softmax(dim=-1)
-        )
-    
-    def forward(self, state):
-        return self.network(state)
-
-def train_policy_gradient(env, policy, episodes=1000):
-    optimizer = torch.optim.Adam(policy.parameters(), lr=0.01)
-    
-    for episode in range(episodes):
-        states, actions, rewards = [], [], []
-        state = env.reset()
-        done = False
-        
-        # Collect episode
-        while not done:
-            probs = policy(torch.FloatTensor(state))
-            action = torch.multinomial(probs, 1).item()
-            next_state, reward, done, _ = env.step(action)
-            
-            states.append(state)
-            actions.append(action)
-            rewards.append(reward)
-            state = next_state
-        
-        # Calculate returns
-        returns = []
-        G = 0
-        for r in reversed(rewards):
-            G = r + 0.99 * G
-            returns.insert(0, G)
-        
-        returns = torch.FloatTensor(returns)
-        returns = (returns - returns.mean()) / returns.std()
-        
-        # Update policy
-        loss = 0
-        for state, action, G in zip(states, actions, returns):
-            probs = policy(torch.FloatTensor(state))
-            log_prob = torch.log(probs[action])
-            loss += -log_prob * G
-        
-        optimizer.zero_grad()
-        loss.backward()
-        optimizer.step()
-\`\`\`
-
-![AI Technology](https://images.unsplash.com/photo-1677756119517-756a188d2d94)
-
-## Actor-Critic Methods
-
-### PPO (Proximal Policy Optimization)
-
-State-of-the-art algorithm:
-
-\`\`\`python
-class ActorCritic(nn.Module):
-    def __init__(self, state_dim, action_dim):
-        super().__init__()
-        
-        self.actor = nn.Sequential(
-            nn.Linear(state_dim, 64),
-            nn.Tanh(),
-            nn.Linear(64, 64),
-            nn.Tanh(),
-            nn.Linear(64, action_dim),
-            nn.Softmax(dim=-1)
-        )
-        
-        self.critic = nn.Sequential(
-            nn.Linear(state_dim, 64),
-            nn.Tanh(),
-            nn.Linear(64, 64),
-            nn.Tanh(),
-            nn.Linear(64, 1)
-        )
-    
-    def forward(self, state):
-        action_probs = self.actor(state)
-        value = self.critic(state)
-        return action_probs, value
-
-def ppo_update(policy, old_probs, states, actions, advantages, clip=0.2):
-    for _ in range(10):  # Multiple epochs
-        new_probs, values = policy(states)
-        
-        # Policy loss
-        ratio = new_probs[actions] / old_probs[actions]
-        clipped_ratio = torch.clamp(ratio, 1-clip, 1+clip)
-        policy_loss = -torch.min(
-            ratio * advantages,
-            clipped_ratio * advantages
-        ).mean()
-        
-        # Value loss
-        value_loss = (advantages ** 2).mean()
-        
-        # Total loss
-        loss = policy_loss + 0.5 * value_loss
-        
-        optimizer.zero_grad()
-        loss.backward()
-        optimizer.step()
-\`\`\`
-
-## Applications
-
-### Game Playing
-- **Atari**: Superhuman performance on classic games
-- **Go**: AlphaGo defeated world champions
-- **StarCraft**: Complex strategy learning
-
-### Robotics
-- Manipulation tasks
-- Locomotion control
-- Navigation
-
-### Real-World Systems
-- **Trading**: Portfolio optimization
-- **Recommendation**: Content personalization
-- **Resource Management**: Data center cooling
-
-![Technology](https://images.unsplash.com/photo-1550751827-4bd374c3f58b)
-
-## Challenges and Solutions
-
-### Sample Efficiency
-Problem: RL requires many interactions
-Solutions: Model-based RL, transfer learning
-
-### Exploration-Exploitation
-Problem: Balance trying new actions vs exploiting known good ones
-Solutions: ε-greedy, UCB, curiosity-driven exploration
-
-### Reward Shaping
-Problem: Sparse rewards make learning difficult
-Solutions: Dense rewards, curriculum learning, inverse RL
-
-Reinforcement learning continues to push the boundaries of what AI agents can accomplish through experience.
-    `,
+***`,
     author: authorAnamol,
   },
 ];

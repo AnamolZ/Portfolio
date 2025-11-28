@@ -42,7 +42,7 @@ export const Sidebar = ({
             placeholder="Search articles..."
             value={searchQuery}
             onChange={(e) => onSearchChange(e.target.value)}
-            className="pl-10 h-10 text-sm border-border/50 focus:border-primary transition-colors"
+            className="pl-10 h-10 text-sm border-border/50 transition-colors"
           />
         </div>
       </div>
@@ -58,7 +58,7 @@ export const Sidebar = ({
                 onClick={() => onCategoryChange(category)}
                 className={`w-full text-left block py-2.5 px-4 text-sm rounded-lg transition-all ${
                   activeCategory === category
-                    ? "bg-primary/0 text-primary font-semibold border border-primary/30"
+                    ? "bg-primary/0 text-white font-semibold border border-primary/30"
                     : "text-muted-foreground hover:bg-accent/10 hover:text-foreground"
                 }`}
               >
