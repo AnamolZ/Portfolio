@@ -1,126 +1,89 @@
-;(function () {
-    'use strict';
-
-    const setFullHeight = () => {
-        const updateHeight = () => $('.js-fullheight').css('height', $(window).height());
-        updateHeight();
-        $(window).resize(updateHeight);
-    };
-
-    const animateOnScroll = () => {
-        let i = 0;
-        $('.animate-box').waypoint(function (direction) {
-            if (direction === 'down' && !$(this.element).hasClass('animated')) {
-                i++;
-                $(this.element).addClass('item-animate');
-                setTimeout(() => {
-                    $('body .animate-box.item-animate').each(function (k) {
-                        const el = $(this);
-                        setTimeout(() => {
-                            const effect = el.data('animate-effect');
-                            el.addClass(`${effect === 'fadeIn' ? 'fadeIn' : 'fadeInUp'} animated`);
-                            el.removeClass('item-animate');
-                        }, k * 200, 'easeInOutExpo');
-                    });
-                }, 100);
-            }
-        }, { offset: '85%' });
-    };
-
-    const initOwlCarousel = () => {
-        $('.owl-carousel3').owlCarousel({
-            animateOut: 'fadeOut',
-            animateIn: 'fadeIn',
-            autoplay: true,
-            loop: true,
-            margin: 0,
-            nav: false,
-            dots: false,
-            autoHeight: true,
-            items: 1,
-            navText: [
-                "<i class='icon-arrow-left3 owl-direction'></i>",
-                "<i class='icon-arrow-right3 owl-direction'></i>"
-            ]
-        });
-    };
-
-    $(function () {
-        setFullHeight();
-        animateOnScroll();
-        initOwlCarousel();
-    });
-})();
-
-window.addEventListener('scroll', () => {
-    const scrollY = window.scrollY;
-    const image = document.querySelector('.scroll-image');
-    if (image) image.style.backgroundPosition = `center ${-scrollY / 2}px`;
-});
+'use strict';
 
 document.addEventListener('DOMContentLoaded', () => {
-    const playlist = [
-        { title: 'Bite Your Nails', artist: 'Marcin', src: './audio/Bite Your Nails.mp3', art: './audio/Bite Your Nails.png' },
-        { title: 'G.O.A.T.', artist: 'Polyphia', src: './audio/GOAT.mp3', art: './audio/GOAT.png' },
-        { title: 'Art Of Guitar', artist: 'Marcin, RJ Pasin', src: './audio/ART OF GUITAR.mp3', art: './audio/ART OF GUITAR.png' },
-        // { title: 'Succession (HBO Original Series Soundtrack)', artist: 'Nicholas Britell', src: '../audio/Succession.mp3', art: '../audio/Succession.jpg' },
-        { title: 'Secrets (Radio Edit)', artist: 'Tiësto, KSHMR, and VASSY', src: './audio/Secrets.mp3', art: './audio/Secrets.jpg' }
-        // { title: '239', artist: 'Prznt, Lilo Key, Adrian Chafer', src: '../audio/Prznt - 239.mp3', art: '../audio/Prznt - 239.png' },
-        // { title: 'Vaa Vaa Pakkam Vaa', artist: 'Ilaiyaraaja, S. P. Balasubrahmanyam, Vani Jairam, Muthulingam, DJ Gowtham', src: '../audio/Vaa Vaa Pakkam Vaa.mp3', art: '../audio/Vaa Vaa Pakkam Vaa.png' }
-    ];
-
-    let currentTrackIndex = 0;
-    const audio = document.getElementById('audioPlayer');
-    const playPauseBtn = document.getElementById('playPauseBtn');
-    const playPauseIcon = playPauseBtn.querySelector('i');
-    const nextBtn = document.getElementById('nextBtn');
-    const prevBtn = document.getElementById('prevBtn');
-    const albumArt = document.querySelector('.album-art-rotating');
-    const staticAlbumArt = document.getElementById('staticAlbumArt');
-    const trackTitle = document.getElementById('trackTitle');
-
-    audio.volume = 0.2;
-
-    const loadTrack = index => {
-        const track = playlist[index];
-        trackTitle.textContent = track.title;
-        staticAlbumArt.src = track.art;
-        audio.src = track.src;
+    // Reveal animations on scroll using IntersectionObserver
+    const observerOptions = {
+        threshold: 0.1,
+        rootMargin: '0px 0px -50px 0px'
     };
 
-    const playTrack = () => {
-        audio.play();
-        playPauseIcon.classList.replace('fa-play', 'fa-pause');
-        albumArt.style.animationPlayState = 'running';
-        albumArt.style.boxShadow = '0 0 20px var(--player-highlight)';
+    const revealObserver = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+            if (entry.isIntersecting) {
+                entry.target.classList.add('reveal');
+                revealObserver.unobserve(entry.target);
+            }
+        });
+    }, observerOptions);
+
+    // Initial check for elements already in view
+    const animateBoxes = document.querySelectorAll('.animate-box');
+    animateBoxes.forEach(el => {
+        revealObserver.observe(el);
+    });
+
+    // Fallback: If elements are not revealed after 1 second, force reveal them
+    // This prevents the "black screen" issue if JS execution is interrupted or observer fails
+    setTimeout(() => {
+        animateBoxes.forEach(el => {
+            if (!el.classList.contains('reveal')) {
+                el.classList.add('reveal');
+            }
+        });
+    }, 1500);
+
+    // Extracurriculars Pagination Logic
+    const impactItems = document.querySelectorAll('.extracurricular-item');
+    const prevBtn = document.getElementById('prev-impact');
+    const nextBtn = document.getElementById('next-impact');
+    const itemsPerPage = 2;
+    let currentImpactPage = 0;
+
+    const updateImpactPagination = () => {
+        impactItems.forEach((item, index) => {
+            const start = currentImpactPage * itemsPerPage;
+            const end = start + itemsPerPage;
+
+            if (index >= start && index < end) {
+                item.classList.remove('hidden');
+                // Re-trigger reveal if not already revealed
+                if (!item.classList.contains('reveal')) {
+                    item.classList.add('reveal');
+                }
+            } else {
+                item.classList.add('hidden');
+            }
+        });
+
+        // Update button states
+        prevBtn.disabled = currentImpactPage === 0;
+        nextBtn.disabled = (currentImpactPage + 1) * itemsPerPage >= impactItems.length;
+
+        // Smooth scroll to section top if not on initial load
+        if (window.scrollY > document.getElementById('extracurriculars').offsetTop) {
+            window.scrollTo({
+                top: document.getElementById('extracurriculars').offsetTop - 50,
+                behavior: 'smooth'
+            });
+        }
     };
 
-    const pauseTrack = () => {
-        audio.pause();
-        playPauseIcon.classList.replace('fa-pause', 'fa-play');
-        albumArt.style.animationPlayState = 'paused';
-        albumArt.style.boxShadow = '0 0 8px rgba(0,0,0,0.3)';
-    };
+    if (prevBtn && nextBtn) {
+        prevBtn.addEventListener('click', () => {
+            if (currentImpactPage > 0) {
+                currentImpactPage--;
+                updateImpactPagination();
+            }
+        });
 
-    const togglePlayPause = () => audio.paused ? playTrack() : pauseTrack();
+        nextBtn.addEventListener('click', () => {
+            if ((currentImpactPage + 1) * itemsPerPage < impactItems.length) {
+                currentImpactPage++;
+                updateImpactPagination();
+            }
+        });
 
-    const nextTrack = () => {
-        currentTrackIndex = (currentTrackIndex + 1) % playlist.length;
-        loadTrack(currentTrackIndex);
-        playTrack();
-    };
-
-    const prevTrack = () => {
-        currentTrackIndex = (currentTrackIndex - 1 + playlist.length) % playlist.length;
-        loadTrack(currentTrackIndex);
-        playTrack();
-    };
-
-    playPauseBtn.addEventListener('click', togglePlayPause);
-    nextBtn.addEventListener('click', nextTrack);
-    prevBtn.addEventListener('click', prevTrack);
-    audio.addEventListener('ended', nextTrack);
-
-    loadTrack(currentTrackIndex);
-    albumArt.style.animationPlayState = 'paused';
+        // Initialize pagination
+        updateImpactPagination();
+    }
 });

@@ -6,9 +6,6 @@ The website reflects Anamol's passion for building robust systems, solving real-
 
 ---
 
-### 🎧 Music Player
-An aesthetic in-page player to add interactivity and showcase personal taste.
-
 ### 🕊️ Code for Good
 A personal touch connecting my passion for coding with personal growth and reflection.
 
