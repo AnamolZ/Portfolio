@@ -86,4 +86,34 @@ document.addEventListener('DOMContentLoaded', () => {
         // Initialize pagination
         updateImpactPagination();
     }
+
+    // Profile Image Shuffle Animation
+    const profileImg = document.getElementById('about-profile-img');
+    const projectImages = [
+        'images/about-1.jpg',
+        'images/about-2.jpg'
+    ];
+    let currentImgIndex = projectImages.indexOf(profileImg.getAttribute('src'));
+    if (currentImgIndex === -1) currentImgIndex = 0;
+
+    if (profileImg) {
+        profileImg.addEventListener('click', () => {
+            // Prevent clicking while animation is running
+            if (profileImg.classList.contains('shuffle-animation')) return;
+
+            // Start animation
+            profileImg.classList.add('shuffle-animation');
+
+            // Wait for half of the animation to change the source (at the bottom position)
+            setTimeout(() => {
+                currentImgIndex = (currentImgIndex + 1) % projectImages.length;
+                profileImg.src = projectImages[currentImgIndex];
+            }, 200);
+
+            // Remove class after animation finishes (0.4s)
+            setTimeout(() => {
+                profileImg.classList.remove('shuffle-animation');
+            }, 400);
+        });
+    }
 });
