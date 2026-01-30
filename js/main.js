@@ -93,10 +93,11 @@ document.addEventListener('DOMContentLoaded', () => {
         'images/about-1.jpg',
         'images/about-2.jpg'
     ];
-    let currentImgIndex = projectImages.indexOf(profileImg.getAttribute('src'));
-    if (currentImgIndex === -1) currentImgIndex = 0;
 
     if (profileImg) {
+        let currentImgIndex = projectImages.indexOf(profileImg.getAttribute('src'));
+        if (currentImgIndex === -1) currentImgIndex = 0;
+
         profileImg.addEventListener('click', () => {
             // Prevent clicking while animation is running
             if (profileImg.classList.contains('shuffle-animation')) return;
