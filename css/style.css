@@ -85,7 +85,7 @@ h4 {
 }
 
 h2 {
-  font-size: 2.2rem;
+  font-size: 2.5rem;
   /* Reduced from 3rem */
   font-weight: 700;
   line-height: 1.1;
@@ -180,6 +180,7 @@ h2 {
   max-width: 520px;
   opacity: 0.85;
   text-align: justify;
+  text-justify: inter-word;
   hyphens: auto;
 }
 
@@ -265,11 +266,9 @@ h2 {
 .skills-mockup {
   position: relative;
   height: 620px;
-  /* Reduced from 680px */
   display: flex;
   justify-content: center;
   margin-top: -4rem;
-  /* Nudging up further as requested */
 }
 
 .mockup-img {
@@ -296,11 +295,57 @@ h2 {
 
 @media (max-width: 1100px) {
   .skills-container {
+    grid-template-columns: 1fr 35%;
+    gap: 2rem;
+  }
+
+  .skills-mockup {
+    height: 480px;
+  }
+
+  .github-intro {
+    max-width: 100% !important;
+  }
+}
+
+@media (max-width: 992px) {
+  .hero-grid {
+    grid-template-columns: 0.8fr 40px 1.2fr;
+    gap: 1.5rem;
+  }
+
+  .hero-content p {
+    font-size: 0.9rem;
+  }
+
+  /* h2 {
+    font-size: 1.8rem;
+  } */
+
+  .hero-img {
+    box-shadow: 12px 12px 0px var(--border-color);
+  }
+
+  .skills-container {
+    grid-template-columns: 1fr 250px;
+  }
+
+  .skills-mockup {
+    height: 420px;
+  }
+}
+
+@media (max-width: 850px) {
+  .skills-container {
     grid-template-columns: 1fr;
   }
 
   .skills-mockup {
     display: none;
+  }
+
+  .github-intro {
+    text-align: center !important;
   }
 }
 
@@ -381,6 +426,9 @@ h2 {
   font-size: 1rem;
   opacity: 0.8;
   margin-bottom: 1.5rem;
+  text-align: justify;
+  text-justify: inter-word;
+  hyphens: auto;
 }
 
 .read-more {
@@ -492,6 +540,8 @@ footer {
   font-size: 0.95rem;
   opacity: 0.7;
   line-height: 1.6;
+  text-align: justify;
+  text-justify: inter-word;
 }
 
 .footer-links {
@@ -550,25 +600,34 @@ footer {
   transform: translateY(0);
 }
 
-@media (max-width: 992px) {
+@media (max-width: 850px) {
 
   .hero-grid,
   .experience-item,
-  .experience-item.reverse {
+  .experience-item.reverse,
+  .extracurricular-item,
+  .extracurricular-item.reverse {
     grid-template-columns: 1fr;
-    gap: 3rem;
+    gap: 2rem;
   }
 
-  .hero-divider {
-    display: none;
-  }
-
+  .hero-divider,
   .side-label {
     display: none;
   }
 
-  h2 {
-    font-size: 2.5rem;
+  /* h2 {
+    font-size: 1.8rem;
+  } */
+
+  .hero-img {
+    box-shadow: 15px 15px 0px var(--border-color);
+  }
+
+  .hero-content p {
+    text-align: justify;
+    text-justify: inter-word;
+    max-width: 100%;
   }
 }
 
