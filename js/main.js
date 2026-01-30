@@ -90,8 +90,8 @@ document.addEventListener('DOMContentLoaded', () => {
     // Profile Image Shuffle Animation
     const profileImg = document.getElementById('about-profile-img');
     const projectImages = [
-        'images/about-2.jpg',
-        'images/about-1.jpeg'
+        'images/about-1.jpeg',
+        'images/about-2.jpg'
     ];
 
     if (profileImg) {
